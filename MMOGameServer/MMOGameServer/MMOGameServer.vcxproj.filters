@@ -1,0 +1,35 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Player">
+      <UniqueIdentifier>{62b53e9a-6fc5-4596-9078-79e60fab5ef1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="LanClient">
+      <UniqueIdentifier>{1f989d2c-64f1-45e9-a8a2-ffb893d101a3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="GameServer">
+      <UniqueIdentifier>{f091d9a9-f65a-40d0-bcaa-016cf9b43e60}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="DataBase">
+      <UniqueIdentifier>{7de658c7-3a3b-49d5-9f3e-068657befc4c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Dump">
+      <UniqueIdentifier>{f1d2c08f-d0bc-4462-ad19-db113883f025}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Log">
+      <UniqueIdentifier>{364648a5-bd54-4d8e-807f-f9361b904cd8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="MemoryPool">
+      <UniqueIdentifier>{f632f922-0fec-4832-b4ad-eebb98b4e9e5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Network">
+      <UniqueIdentifier>{92b191d7-f0c4-4869-bf75-76c906792c3e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Parse">
+      <UniqueIdentifier>{2527c7a4-a3c9-40cf-ab65-7999aa4416cd}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp" />
+  </ItemGroup>
+</Project>
