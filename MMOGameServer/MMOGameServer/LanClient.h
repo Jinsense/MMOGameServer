@@ -1,1 +1,4 @@
-#pragma once
+#ifndef _GAMESERVER_LANCLIENT_LANCLIENT_H_
+#define _GAMESERVER_LANCLIENT_LANCLIENT_H_
+
+#endif

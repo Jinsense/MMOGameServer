@@ -1,1 +1,4 @@
-#pragma once
+#ifndef _GAMESERVER_GAMESERVER_GAMESERVER_H_
+#define _GAMESERVER_GAMESERVER_GAMESERVER_H_
+
+#endif
