@@ -2,19 +2,17 @@
 
 #include "Session.h"
 
-CNetSession::CNetSession()
+CNetSession::CNetSession() : _RecvQ(BUF)
 {
 	_Mode = MODE_NONE;
-	_SendFlag = false;
-	_SendCount = NULL;
-	_IOCount = NULL;
-	_LogOutFlag = NULL;
-	_AuthToGameFlag = NULL;
-	_ClientID = NULL;
-	_Sock = INVALID_SOCKET;
+	_iArrayIndex = NULL;
 	_RecvQ.Clear();
-	
-
+	_iSendPacketCnt = NULL;
+	_iSendPacketSize = NULL;
+	_SendFlag = false;
+	_IOCount = NULL;
+	_LogOutFlag = false;
+	_AuthToGameFlag = false;
 }
 
 CNetSession::~CNetSession()
@@ -25,13 +23,12 @@ CNetSession::~CNetSession()
 void CNetSession::SendPacket(CPacket *pPacket)
 {
 	_SendQ.Enqueue(pPacket);
-	InterlockedIncrement(&_SendCount);
 	return;
 }
 
 void CNetSession::Disconnect()
 {
-	shutdown(_Sock, SD_BOTH);
+	shutdown(_ClientInfo.Sock, SD_BOTH);
 	return;
 }
 
@@ -45,6 +42,6 @@ bool CNetSession::SetMode_Game()
 	if (MODE_AUTH != _Mode)
 		return false;
 
-	InterlockedExchange(&_Mode, MODE_AUTH_TO_GAME);
+	_Mode = MODE_AUTH_TO_GAME;
 	return true;
 }

@@ -37,6 +37,9 @@ bool CDBConnector::Set(char *szDBIP, char *szUser, char *szPassword, char *szDBN
 	_iDBPort = iDBPort;
 	_Log = _Log->GetInstance();
 
+	if (false == Connect())
+		return false;
+
 	return true;
 }
 
@@ -163,6 +166,12 @@ void CDBConnector::FreeResult()
 	//	쿼리에 대한 결과를 모두 정리, 피드백이 필요없는 경우도 항상 호출해서 정리
 	mysql_free_result(_pSqlResult);
 	return;
+}
+
+int CDBConnector::FetchNum()
+{
+	int totalrows = mysql_num_rows(_pSqlResult);
+	return mysql_num_fields(_pSqlResult);
 }
 
 void CDBConnector::SaveLastError()

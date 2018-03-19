@@ -2,14 +2,36 @@
 #define _GAMESERVER_PLAYER_SESSION_H_
 
 #include <Windows.h>
+#include <iostream>
 
 #include "Packet.h"
 #include "RingBuffer.h"
 #include "LockFreeQueue.h"
 
+typedef struct CLIENT_CONNECT_INFO
+{
+	//	IP, Port, Socket, ClientID 정보
+	char IP[20] = { 0, };
+	int Port;
+	SOCKET Sock;
+	unsigned __int64	ClientID;
+
+	CLIENT_CONNECT_INFO()
+	{
+		Port = NULL;
+		ClientID = NULL;
+		Sock = INVALID_SOCKET;
+	}
+};
+
 class CNetSession
 {
 public:
+	enum en_SESSION_BUF
+	{
+		BUF = 10000,
+	};
+
 	enum en_SESSION_MODE
 	{
 		MODE_NONE = 1,
@@ -44,21 +66,25 @@ public:
 	//	기본적인 IOCP 네트워크 처리를 위한 변수
 	//	socket, recv, send buff, overlapped, iocount 등
 
-	unsigned __int64	_ClientID;
-	SOCKET	_Sock;
+	en_SESSION_MODE	_Mode;		//	세션의 상태모드
+	int		_iArrayIndex;		//	Session 배열의 자기 인덱스
+
+	CLIENT_CONNECT_INFO _ClientInfo;
 	OVERLAPPED	_SendOver;
 	OVERLAPPED	_RecvOver;
 	CRingBuffer	_RecvQ;
 	CLockFreeQueue<CPacket*>	_SendQ;
-	IN_ADDR		_Info;
+	CLockFreeQueue<CPacket*>	_CompletePacket;
 
-private:
-	long	_Mode;
-	long	_SendFlag;
-	long	_SendCount;
+
+	int		_iSendPacketCnt;
+	int		_iSendPacketSize;
+
+	long	_SendFlag; 
 	long	_IOCount;
-	long	_LogOutFlag;
-	long	_AuthToGameFlag;
+
+	bool	_LogOutFlag;
+	bool	_AuthToGameFlag;
 
 };
 

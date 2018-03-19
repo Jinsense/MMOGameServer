@@ -17,9 +17,11 @@ public:
 	void OnGame_Packet(CPacket *pPacket);
 	void OnGame_ClientRelease();
 
+	
+public:
+	INT64	_AccountNo;
 
-
-
+	//	기타 게임 컨텐츠들
 };
 
 #endif
