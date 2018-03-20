@@ -64,6 +64,15 @@ bool CMMOServer::Start(WCHAR *szListenIP, int iPort, int iWorkerThread, bool bEn
 	tcpkl.keepaliveinterval = 1000;	// keepalive 신호를 보내고 응답이 없으면 1초마다 재 전송하겠다. (ms tcp 는 10회 재시도 한다)
 	WSAIoctl(_ListenSocket, SIO_KEEPALIVE_VALS, &tcpkl, sizeof(tcp_keepalive), 0, 0, &dwResult, NULL, NULL);
 
+	if (false == ::bind(_ListenSocket, (sockaddr*)&Server_addr, sizeof(Server_addr)))
+		return false;
+
+	if (false == listen(_ListenSocket, SOMAXCONN))
+		return false;
+
+	if (false == CreateThread())
+		return false;
+	
 	return true;
 }
 
