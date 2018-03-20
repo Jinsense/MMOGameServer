@@ -5,6 +5,7 @@
 
 class CGameServer : public CMMOServer
 {
+public:
 	CGameServer(int iMaxSession);
 	~CGameServer();
 
@@ -14,6 +15,7 @@ class CGameServer : public CMMOServer
 
 private:
 
+	CPlayer * pPlayer;
 };
 
 #endif

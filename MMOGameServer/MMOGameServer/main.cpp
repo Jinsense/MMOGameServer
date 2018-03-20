@@ -1,4 +1,4 @@
-#include "Config.h
+#include "Config.h"
 #include "GameServer.h"
 
 //# MMOServer 더미 사용패킷

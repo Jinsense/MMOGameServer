@@ -55,6 +55,23 @@ private:
 
 	void ProcGame_Release();
 
+	//	스레드 함수
+	static unsigned __stdcall	AcceptThread(void *pParam);
+	bool				AcceptThread_update();
+
+	static unsigned __stdcall	AuthThread(void *pParam);
+	bool				AuthThread_update();
+
+	static unsigned __stdcall	GameUpdateThread(void *pParam);
+	bool				GameUpdateThread_update();
+
+
+	static unsigned __stdcall	IOCPWorkerThread(void *pParam);
+	bool				IOCPWorkerThread_update();
+
+	static unsigned __stdcall	SendThread(void *pParam);
+	bool				SendThread_update();
+
 private:
 	//	AUTH 모드 업데이트 이벤트 로직처리부
 	virtual void OnAuth_Update() = 0;
@@ -100,25 +117,8 @@ private:
 	//	Send 부
 	HANDLE	_hSendThread;
 
-	CNetSession **_pSessionArray;
-
-	//	스레드 함수
-	static unsigned __stdcall	AcceptThread(void *pParam);
-	bool				AcceptThread_update();
-
-	static unsigned __stdcall	AuthThread(void *pParam);
-	bool				AuthThread_update();
-
-	static unsigned __stdcall	GameUpdateThread(void *pParam);
-	bool				GameUpdateThread_update();
-
-
-	static unsigned __stdcall	IOCPWorkerThread(void *pParam);
-	bool				IOCPWorkerThread_update();
-
-	static unsigned __stdcall	SendThread(void *pParam);
-	bool				SendThread_update();
-	
+	CNetSession	**_pSessionArray;
+	SRWLOCK		_Srwlock;
 public:
 	long		_Monitor_AcceptSocket;
 	long		_Monitor_SessionAllMode;

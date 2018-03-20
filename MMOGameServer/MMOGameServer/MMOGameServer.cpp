@@ -1,3 +1,14 @@
+#include <WinSock2.h>
+#include <windows.h>
+#include <wchar.h>
+#include <Ws2tcpip.h>
+#include <Mstcpip.h>
+#include <process.h>
+#include <time.h>
+#include <iostream>
+
+using namespace std;
+
 #include "MMOGameServer.h"
 
 CMMOServer::CMMOServer(int iMaxSession) : _iMaxSession(iMaxSession)
@@ -18,17 +29,41 @@ CMMOServer::CMMOServer(int iMaxSession) : _iMaxSession(iMaxSession)
 	_hIOCP = NULL;
 	_hSendThread = NULL;
 	_pSessionArray = new CNetSession*[_iMaxSession];
-
+	InitializeSRWLock(&_Srwlock);
+	CPacket::MemoryPoolInit();
 }
 
 CMMOServer::~CMMOServer()
 {
-
+	delete[] _pSessionArray;
 }
 
 bool CMMOServer::Start(WCHAR *szListenIP, int iPort, int iWorkerThread, bool bEnableNagle, BYTE byPacketCode, BYTE byPacketKey1, BYTE byPacketKey2)
 {
+	setlocale(LC_ALL, "Korean");
 	
+	CPacket::Init(byPacketCode, byPacketKey1, byPacketKey2);
+
+	for (int i = 0; i < _iMaxSession; i++)
+		_BlankSessionStack.Push(i);
+
+	WSADATA Data;
+	WSAStartup(MAKEWORD(2, 2), &Data);
+	_hIOCP = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, NULL, 0);
+	_ListenSocket = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
+	struct sockaddr_in Server_addr;
+	ZeroMemory(&Server_addr, sizeof(Server_addr));
+	Server_addr.sin_family = AF_INET;
+	InetPton(AF_INET, szListenIP, &Server_addr.sin_addr);
+	Server_addr.sin_port = htons(iPort);
+	setsockopt(_ListenSocket, IPPROTO_TCP, TCP_NODELAY, (char*)bEnableNagle, sizeof(bEnableNagle));
+	tcp_keepalive tcpkl;
+	DWORD dwResult;
+	tcpkl.onoff = 1;				// KEEPALIVE ON
+	tcpkl.keepalivetime = 10000;	// 10초 마다 KEEPALIVE 신호를 보내겠다. (윈도우 기본은 2시간)
+	tcpkl.keepaliveinterval = 1000;	// keepalive 신호를 보내고 응답이 없으면 1초마다 재 전송하겠다. (ms tcp 는 10회 재시도 한다)
+	WSAIoctl(_ListenSocket, SIO_KEEPALIVE_VALS, &tcpkl, sizeof(tcp_keepalive), 0, 0, &dwResult, NULL, NULL);
+
 	return true;
 }
 

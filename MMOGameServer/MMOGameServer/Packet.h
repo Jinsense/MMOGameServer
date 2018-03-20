@@ -19,9 +19,9 @@ public:
 		PAYLOAD_SIZE = 1024,
 		BUFFER_SIZE = HEADER_SIZE + PAYLOAD_SIZE,
 
-		PACKET_CODE = 119,
-		PACKET_KEY1 = 50,
-		PACKET_KEY2 = 132,
+//		PACKET_CODE = 119,
+//		PACKET_KEY1 = 50,
+//		PACKET_KEY2 = 132,
 	};
 
 #pragma pack(push, 1)   
@@ -32,8 +32,7 @@ public:
 		BYTE	RandKey;
 		BYTE	CheckSum;
 		st_PACKET_HEADER() :
-			byCode(static_cast<int>(en_PACKETDEFINE::PACKET_CODE)),
-			RandKey(rand() % 255), CheckSum(NULL), shLen(NULL) {}
+			byCode(_byCode), RandKey(rand() % 255), CheckSum(NULL), shLen(NULL) {}
 	};
 #pragma pack(pop)
 
@@ -57,6 +56,8 @@ public:
 
 	static CPacket*	Alloc();
 	static void		MemoryPoolInit();
+	static void		Init(BYTE byCode, BYTE byPacketKey1, BYTE byPacketKey2);
+
 	//	static __int64	GetUsePool() { return m_pMemoryPool->GetUseCount(); }
 	static __int64	GetAllocPool() { return m_pMemoryPool->GetAllocCount(); }
 
@@ -72,27 +73,27 @@ public:
 	void	SetHeader(char * pHeader);
 	void	SetHeader_CustomHeader(char *pHeader, int iCustomHeaderSize);
 	void	SetHeader_CustomShort(unsigned short shHeader);
-	char*	GetBufferPtr() { return m_chBuffer; }
-	char*	GetWritePtr() { return m_pWritePos; }
-	char*	GetReadPtr() { return m_pReadPos; }
-	int		GetBufferSize() { return m_iBufferSize; }
-	int		GetDataSize() { return m_iDataSize; }
+	char*	GetBufferPtr() { return _chBuffer; }
+	char*	GetWritePtr() { return _pWritePos; }
+	char*	GetReadPtr() { return _pReadPos; }
+	int		GetBufferSize() { return _iBufferSize; }
+	int		GetDataSize() { return _iDataSize; }
 	int		GetPacketSize()
 	{
-		return static_cast<int>(en_PACKETDEFINE::HEADER_SIZE) + m_iDataSize;
+		return static_cast<int>(en_PACKETDEFINE::HEADER_SIZE) + _iDataSize;
 	}
 	int		GetPacketSize_CustomHeader(int iCustomeHeaderSize)
 	{
-		return iCustomeHeaderSize + m_iDataSize;
+		return iCustomeHeaderSize + _iDataSize;
 	}
 	int		GetFreeSize()
 	{
-		return static_cast<int>(en_PACKETDEFINE::PAYLOAD_SIZE) - m_iDataSize;
+		return static_cast<int>(en_PACKETDEFINE::PAYLOAD_SIZE) - _iDataSize;
 	}
 	void	EnCode();
 	bool	DeCode(st_PACKET_HEADER * pInHeader);
 
-	__int64 GetRefCount() { return m_iRefCount; }
+	__int64 GetRefCount() { return _iRefCount; }
 public:
 	CPacket & operator=(CPacket &Packet);
 
@@ -125,14 +126,18 @@ public:
 	static		CMemoryPoolTLS<CPacket> *m_pMemoryPool;
 	st_PACKET_HEADER	m_header;
 private:
-	char		m_chBuffer[static_cast<int>(en_PACKETDEFINE::BUFFER_SIZE)];
-	char		*m_pEndPos;
-	char		*m_pWritePos;
-	char		*m_pReadPos;
-	int			m_iBufferSize;
-	int			m_iDataSize;
-	__int64		m_iRefCount;
-	long		m_lHeaderSetFlag;
+
+	static BYTE	_byCode;
+	static BYTE	_byPacketKey1;
+	static BYTE	_byPacketKey2;
+	char	_chBuffer[static_cast<int>(en_PACKETDEFINE::BUFFER_SIZE)];
+	char	*_pEndPos;
+	char	*_pWritePos;
+	char	*_pReadPos;
+	int		_iBufferSize;
+	int		_iDataSize;
+	__int64	_iRefCount;
+	long	_lHeaderSetFlag;
 };
 
 #endif
