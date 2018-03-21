@@ -161,8 +161,13 @@ void CMMOServer::ProcGame_Release()
 
 unsigned __stdcall CMMOServer::AcceptThread(void *pParam)
 {
-
-	return;
+	CMMOServer *pAcceptThread = (CMMOServer*)pParam;
+	if (NULL == pAcceptThread)
+	{
+		wprintf(L"[MMOServer :: AcceptThread] Init Error\n");
+		return false;
+	}
+	return true;
 }
 
 bool CMMOServer::AcceptThread_update()
@@ -173,8 +178,13 @@ bool CMMOServer::AcceptThread_update()
 
 unsigned __stdcall CMMOServer::AuthThread(void *pParam)
 {
-
-	return;
+	CMMOServer *pAuthThread = (CMMOServer*)pParam;
+	if (NULL == pAuthThread)
+	{
+		wprintf(L"[MMOServer :: AuthThread] Init Error\n");
+		return false;
+	}
+	return true;
 }
 bool CMMOServer::AuthThread_update()
 {
@@ -184,8 +194,13 @@ bool CMMOServer::AuthThread_update()
 
 unsigned __stdcall CMMOServer::GameUpdateThread(void *pParam)
 {
-
-	return;
+	CMMOServer *pGameUpdateThread = (CMMOServer*)pParam;
+	if (NULL == pGameUpdateThread)
+	{
+		wprintf(L"[MMOServer :: GameUpdateThread] Init Error\n");
+		return false;
+	}
+	return true;
 }
 
 bool CMMOServer::GameUpdateThread_update()
@@ -196,8 +211,13 @@ bool CMMOServer::GameUpdateThread_update()
 
 unsigned __stdcall CMMOServer::IOCPWorkerThread(void *pParam)
 {
-
-	return;
+	CMMOServer *pIOCPWorkerThread = (CMMOServer*)pParam;
+	if (NULL == pIOCPWorkerThread)
+	{
+		wprintf(L"[MMOServer :: IOCPWorkerThread] Init Error\n");
+		return false;
+	}
+	return true;
 }
 
 bool CMMOServer::IOCPWorkerThread_update()
@@ -208,8 +228,13 @@ bool CMMOServer::IOCPWorkerThread_update()
 
 unsigned __stdcall CMMOServer::SendThread(void *pParam)
 {
-
-	return;
+	CMMOServer *pSendThread = (CMMOServer*)pParam;
+	if (NULL == pSendThread)
+	{
+		wprintf(L"[MMOServer :: SendThread] Init Error\n");
+		return false;
+	}
+	return true;
 }
 
 bool CMMOServer::SendThread_update()
