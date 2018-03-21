@@ -74,8 +74,8 @@ public:
 	OVERLAPPED	_RecvOver;
 	CRingBuffer	_RecvQ;
 	CLockFreeQueue<CPacket*>	_SendQ;
-	CLockFreeQueue<CPacket*>	_CompletePacket;
-
+	CLockFreeQueue<CPacket*>	_CompleteRecvPacket;
+	CLockFreeQueue<CPacket*>	_CompleteSendPacket;
 
 	int		_iSendPacketCnt;
 	int		_iSendPacketSize;

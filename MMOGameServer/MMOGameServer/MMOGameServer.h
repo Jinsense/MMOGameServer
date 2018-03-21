@@ -13,9 +13,11 @@
 #include "Log.h"
 #include "Dump.h"
 
-#define WORKER_THREAD_MAX		3
-#define WSABUF_MAX				300
-
+#define		WORKER_THREAD_MAX		3
+#define		WSABUF_MAX				300
+#define		AUTH_MAX				5
+#define		GAME_MAX				3
+#define		RELEASE_MAX				100
 
 class CMMOServer
 {
@@ -41,18 +43,23 @@ public:
 	//	패킷 보내기, 특정 클라이언트
 	void SendPacket(CPacket *pPacket, unsigned __int64 ClientID);
 
+	bool SessionAcquireLock(int Index);
+	bool SessionAcquireFree(int Index);
 private:
 	void Error(int ErrorCode, WCHAR *szFormatStr, ...);
+	void RecvPost(int Index);
+	void SendPost(int Index);
+	void CompleteRecv(int Index, DWORD Trans);
+	void CompleteSend(int Index, DWORD Trans);
 
 	//	Auth, Game 스레드의 처리함수
 	void ProcAuth_Accept();
-	void ProcAuth_Packet();
+	void ProcAuth_LogoutInAuth();
 	void ProcAuth_Logout();
+	void ProcAuth_AuthToGame();
 
 	void ProcGame_AuthToGame();
-	void ProcGame_Packet();
 	void ProcGame_Logout();
-
 	void ProcGame_Release();
 
 	//	스레드 함수
@@ -73,6 +80,8 @@ private:
 	bool				SendThread_update();
 
 private:
+	virtual void OnConnectionRequest() = 0;
+	
 	//	AUTH 모드 업데이트 이벤트 로직처리부
 	virtual void OnAuth_Update() = 0;
 	
@@ -90,17 +99,18 @@ private:
 
 	SOCKET _ListenSocket;
 
+	BYTE _byCode;
 	bool _bEnableNagle;
 	int _iWorkerThread;
 
 	WCHAR _szListenIP[16];
 	int _iListenPort;
-	BYTE _byPacketCode;
+	unsigned __int64 _iClientIDCnt;
 
 	HANDLE _hAcceptThread;
 
 	CLockFreeQueue<CLIENT_CONNECT_INFO *>	_AccpetSocketQueue;	//	신규접속 Socket 큐
-	CLockFreeQueue<CLIENT_CONNECT_INFO>		_MemoryPool_ConnectInfo;
+	CMemoryPool<CLIENT_CONNECT_INFO>		*_pMemoryPool_ConnectInfo;
 
 	//	Auth 부
 	HANDLE	_hAuthThread;
@@ -120,16 +130,19 @@ private:
 	CNetSession	**_pSessionArray;
 	SRWLOCK		_Srwlock;
 public:
-	long		_Monitor_AcceptSocket;
-	long		_Monitor_SessionAllMode;
-	long		_Monitor_SessionAuthMode;
-	long		_Monitor_SessionGameMode;
+	long long	_Monitor_AcceptTotal;			//	Accept 총 횟수
+	long		_Monitor_AcceptSocket;			//	1초 당 Accept 횟수
+	long		_Monitor_SessionAllMode;		//	전체 접속자 수
+	long		_Monitor_SessionAuthMode;		//	AuthMode 접속자 수
+	long		_Monitor_SessionGameMode;		//	GameMode 접속자 수
 
-	long		_Monitor_Counter_AuthUpdate;
-	long		_Monitor_Counter_GameUpdate;
-	long		_Monitor_Counter_Accept;
-	long		_Monitor_Counter_PacketProc;
-	long		_Monitor_Counter_PacketSend;
+	long		_Monitor_Counter_AuthUpdate;	//	1초 당 AuthThread 루프 횟수
+	long		_Monitor_Counter_GameUpdate;	//	1초 당 GameThread 루프 횟수
+	long		_Monitor_Counter_Recv;			//	1초 당 Recv 루프 횟수
+	long		_Monitor_Counter_Send;			//	1초 당 Send 루프 횟수
+	long		_Monitor_Counter_PacketSend;	//	1초 당 SendThread 루프 횟수
+
+	CSystemLog	*_pLog;
 };
 
 #endif
