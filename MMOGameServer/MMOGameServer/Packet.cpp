@@ -4,7 +4,10 @@
 
 //CMemoryPool<CPacket>* CPacket::m_pMemoryPool = NULL;
 CMemoryPoolTLS<CPacket>* CPacket::m_pMemoryPool = NULL;
-
+BYTE CPacket::_byCode = NULL;
+BYTE CPacket::_byPacketKey1 = NULL;
+BYTE CPacket::_byPacketKey2 = NULL;
+long CPacket::_UseCount = 0;
 
 CPacket::CPacket() :
 	_iBufferSize(static_cast<int>(en_PACKETDEFINE::BUFFER_SIZE)),
@@ -16,9 +19,6 @@ CPacket::CPacket() :
 	_pWritePos = _chBuffer + static_cast<int>(en_PACKETDEFINE::HEADER_SIZE);
 	_lHeaderSetFlag = false;
 	_iRefCount = 0;
-	_byCode = NULL;
-	_byPacketKey1 = NULL;
-	_byPacketKey2 = NULL;
 }
 
 CPacket::~CPacket()
@@ -39,6 +39,8 @@ void CPacket::Clear()
 
 CPacket * CPacket::Alloc()
 {
+	InterlockedIncrement(&_UseCount);
+
 	CPacket *_pPacket = m_pMemoryPool->Alloc();
 	_pPacket->Clear();
 	_pPacket->AddRef();
@@ -53,7 +55,10 @@ void CPacket::Free()
 		if (0 > Count)
 			g_CrashDump->Crash();
 		else
+		{
+			InterlockedDecrement(&_UseCount);
 			m_pMemoryPool->Free(this);
+		}
 	}
 }
 

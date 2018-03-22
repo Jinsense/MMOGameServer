@@ -22,6 +22,8 @@ CNetSession::~CNetSession()
 
 void CNetSession::SendPacket(CPacket *pPacket)
 {
+	pPacket->AddRef();
+	pPacket->EnCode();
 	_SendQ.Enqueue(pPacket);
 	return;
 }

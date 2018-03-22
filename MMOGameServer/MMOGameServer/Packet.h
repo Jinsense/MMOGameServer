@@ -122,14 +122,16 @@ public:
 	CPacket& operator >> (double& Value);
 
 public:
-	//	static		CMemoryPool<CPacket> *m_pMemoryPool;
-	static		CMemoryPoolTLS<CPacket> *m_pMemoryPool;
-	st_PACKET_HEADER	m_header;
-private:
-
 	static BYTE	_byCode;
 	static BYTE	_byPacketKey1;
 	static BYTE	_byPacketKey2;
+	//	static		CMemoryPool<CPacket> *m_pMemoryPool;
+	static		CMemoryPoolTLS<CPacket> *m_pMemoryPool;
+	st_PACKET_HEADER	m_header;
+
+	static long	_UseCount;
+private:
+
 	char	_chBuffer[static_cast<int>(en_PACKETDEFINE::BUFFER_SIZE)];
 	char	*_pEndPos;
 	char	*_pWritePos;
@@ -138,6 +140,7 @@ private:
 	int		_iDataSize;
 	__int64	_iRefCount;
 	long	_lHeaderSetFlag;
+
 };
 
 #endif

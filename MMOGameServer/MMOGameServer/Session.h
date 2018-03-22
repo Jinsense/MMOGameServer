@@ -7,6 +7,7 @@
 #include "Packet.h"
 #include "RingBuffer.h"
 #include "LockFreeQueue.h"
+#include "CommonProtocol.h"
 
 typedef struct CLIENT_CONNECT_INFO
 {
@@ -22,7 +23,7 @@ typedef struct CLIENT_CONNECT_INFO
 		ClientID = NULL;
 		Sock = INVALID_SOCKET;
 	}
-};
+}CLIENTINFO;
 
 class CNetSession
 {

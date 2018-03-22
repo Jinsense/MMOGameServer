@@ -38,7 +38,7 @@ public:
 	bool CreateIOCP_Socket(SOCKET Socket, ULONG_PTR Key);
 
 	//	패킷 보내기, 전체세션 대상
-	void SendPacket_GameAll(CPacket *pPacket, unsigned __int64 ExcludeClientID = 0);
+	void SendPacket_GameAll(CPacket *pPacket, unsigned __int64 ExcludeClientID);
 
 	//	패킷 보내기, 특정 클라이언트
 	void SendPacket(CPacket *pPacket, unsigned __int64 ClientID);
@@ -59,25 +59,77 @@ private:
 	void ProcAuth_AuthToGame();
 
 	void ProcGame_AuthToGame();
+	void ProcGame_LogoutInGame();
 	void ProcGame_Logout();
 	void ProcGame_Release();
 
 	//	스레드 함수
-	static unsigned __stdcall	AcceptThread(void *pParam);
-	bool				AcceptThread_update();
+	static unsigned int __stdcall	AcceptThread(void *pParam)
+	{
+		CMMOServer *pAcceptThread = (CMMOServer*)pParam;
+		if (NULL == pAcceptThread)
+		{
+			wprintf(L"[MMOServer :: AcceptThread] Init Error\n");
+			return false;
+		}
+		pAcceptThread->AcceptThread_update();
+		return true;
+	}
 
-	static unsigned __stdcall	AuthThread(void *pParam);
-	bool				AuthThread_update();
+	bool AcceptThread_update();
 
-	static unsigned __stdcall	GameUpdateThread(void *pParam);
-	bool				GameUpdateThread_update();
+	static unsigned int __stdcall	AuthThread(void *pParam)
+	{
+		CMMOServer *pAuthThread = (CMMOServer*)pParam;
+		if (NULL == pAuthThread)
+		{
+			wprintf(L"[MMOServer :: AuthThread] Init Error\n");
+			return false;
+		}
+		pAuthThread->AuthThread_update();
+		return true;
+	}
+	bool AuthThread_update();
+
+	static unsigned __stdcall	GameUpdateThread(void *pParam)
+	{
+		CMMOServer *pGameUpdateThread = (CMMOServer*)pParam;
+		if (NULL == pGameUpdateThread)
+		{
+			wprintf(L"[MMOServer :: GameUpdateThread] Init Error\n");
+			return false;
+		}
+		pGameUpdateThread->GameUpdateThread_update();
+		return true;
+	}
+	bool GameUpdateThread_update();
 
 
-	static unsigned __stdcall	IOCPWorkerThread(void *pParam);
-	bool				IOCPWorkerThread_update();
+	static unsigned __stdcall	IOCPWorkerThread(void *pParam)
+	{
+		CMMOServer *pIOCPWorkerThread = (CMMOServer*)pParam;
+		if (NULL == pIOCPWorkerThread)
+		{
+			wprintf(L"[MMOServer :: IOCPWorkerThread] Init Error\n");
+			return false;
+		}
+		pIOCPWorkerThread->IOCPWorkerThread_update();
+		return true;
+	}
+	bool IOCPWorkerThread_update();
 
-	static unsigned __stdcall	SendThread(void *pParam);
-	bool				SendThread_update();
+	static unsigned __stdcall	SendThread(void *pParam)
+	{
+		CMMOServer *pSendThread = (CMMOServer*)pParam;
+		if (NULL == pSendThread)
+		{
+			wprintf(L"[MMOServer :: SendThread] Init Error\n");
+			return false;
+		}
+		pSendThread->SendThread_update();
+		return true;
+	}
+	bool SendThread_update();
 
 private:
 	virtual void OnConnectionRequest() = 0;
@@ -93,10 +145,11 @@ private:
 public:
 	const int _iMaxSession;
 
-private:
+protected:
 	bool _bShutdown;
 	bool _bShutdownListen;
 
+private:
 	SOCKET _ListenSocket;
 
 	BYTE _byCode;

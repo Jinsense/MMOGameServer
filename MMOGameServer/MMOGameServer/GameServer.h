@@ -10,15 +10,29 @@ public:
 	~CGameServer();
 
 	void OnConnectionRequest();
-	void OnAuth_Packet();
-	void OnGame_Packet();
 	void OnAuth_Update();
 	void OnGame_Update();
 	void OnError(int iErrorCode, WCHAR *szError);
 
-private:
+	bool MonitorInit();
+	bool MonitorOnOff();
+	static unsigned int __stdcall MonitorThread(void *pParam)
+	{
+		CGameServer *pMonitorThread = (CGameServer*)pParam;
+		if (NULL == pMonitorThread)
+		{
+			wprintf(L"[GameServer :: MonitorThread] Init Error\n");
+			return false;
+		}
+		pMonitorThread->MonitorThread_update();
+		return true;
+	}
+	bool MonitorThread_update();
 
-	CPlayer * pPlayer;
+private:
+	bool	_bMonitor;
+	CPlayer *_pPlayer;
+	HANDLE	_hMonitorThread;
 };
 
 #endif

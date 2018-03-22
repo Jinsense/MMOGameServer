@@ -5,7 +5,11 @@
 #include <Mstcpip.h>
 #include <process.h>
 #include <time.h>
+#include <chrono>
 #include <iostream>
+
+
+
 
 using namespace std;
 
@@ -13,6 +17,9 @@ using namespace std;
 
 CMMOServer::CMMOServer(int iMaxSession) : _iMaxSession(iMaxSession)
 {
+
+	timeBeginPeriod(1);
+
 	_bShutdown = false;
 	_bShutdownListen = false;
 	_ListenSocket = INVALID_SOCKET;
@@ -49,11 +56,13 @@ CMMOServer::CMMOServer(int iMaxSession) : _iMaxSession(iMaxSession)
 
 CMMOServer::~CMMOServer()
 {
+	timeEndPeriod(1);
 	delete[] _pSessionArray;
 }
 
 bool CMMOServer::Start(WCHAR *szListenIP, int iPort, int iWorkerThread, bool bEnableNagle, BYTE byPacketCode, BYTE byPacketKey1, BYTE byPacketKey2)
 {
+	int iRetval = 0;
 	setlocale(LC_ALL, "Korean");
 	
 	CPacket::Init(byPacketCode, byPacketKey1, byPacketKey2);
@@ -63,31 +72,51 @@ bool CMMOServer::Start(WCHAR *szListenIP, int iPort, int iWorkerThread, bool bEn
 		_BlankSessionStack.Push(i);
 
 	WSADATA Data;
-	WSAStartup(MAKEWORD(2, 2), &Data);
+	if (0 != WSAStartup(MAKEWORD(2, 2), &Data))
+		return false;
 	_hIOCP = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, NULL, 0);
+	if (NULL == _hIOCP)
+		return false;
 	_ListenSocket = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
+	if (INVALID_SOCKET == _ListenSocket)
+		return false;
+
 	struct sockaddr_in Server_addr;
 	ZeroMemory(&Server_addr, sizeof(Server_addr));
 	Server_addr.sin_family = AF_INET;
-	InetPton(AF_INET, szListenIP, &Server_addr.sin_addr);
+	InetPton(AF_INET, (PCWSTR)szListenIP, &Server_addr.sin_addr);
 	Server_addr.sin_port = htons(iPort);
-	setsockopt(_ListenSocket, IPPROTO_TCP, TCP_NODELAY, (char*)bEnableNagle, sizeof(bEnableNagle));
+	if (0 != setsockopt(_ListenSocket, IPPROTO_TCP, TCP_NODELAY, (char*)&bEnableNagle, sizeof(bEnableNagle)))
+	{
+		int LastError = WSAGetLastError();
+		wprintf(L"[Sock opt Error : %d\n", LastError);
+		return false;
+	}
+	
 	tcp_keepalive tcpkl;
 	DWORD dwResult;
 	tcpkl.onoff = 1;				// KEEPALIVE ON
 	tcpkl.keepalivetime = 10000;	// 10초 마다 KEEPALIVE 신호를 보내겠다. (윈도우 기본은 2시간)
 	tcpkl.keepaliveinterval = 1000;	// keepalive 신호를 보내고 응답이 없으면 1초마다 재 전송하겠다. (ms tcp 는 10회 재시도 한다)
 	WSAIoctl(_ListenSocket, SIO_KEEPALIVE_VALS, &tcpkl, sizeof(tcp_keepalive), 0, 0, &dwResult, NULL, NULL);
-
-	if (false == ::bind(_ListenSocket, (sockaddr*)&Server_addr, sizeof(Server_addr)))
-		return false;
-
-	if (false == listen(_ListenSocket, SOMAXCONN))
-		return false;
-
-	if (false == CreateThread())
-		return false;
 	
+	iRetval == ::bind(_ListenSocket, (sockaddr*)&Server_addr, sizeof(Server_addr));
+	if (SOCKET_ERROR == iRetval)
+	{
+		int LastError = WSAGetLastError();
+		wprintf(L"[Sock opt Error : %d\n", LastError);
+		return false;
+	}
+
+	iRetval == listen(_ListenSocket, SOMAXCONN);
+	if (SOCKET_ERROR == iRetval)
+	{
+		int LastError = WSAGetLastError();
+		wprintf(L"[Sock opt Error : %d\n", LastError);
+		return false;
+	}
+
+	CreateThread();
 	return true;
 }
 
@@ -99,7 +128,7 @@ bool CMMOServer::Stop()
 
 void CMMOServer::SetSessionArray(int iArrayIndex, CNetSession *pSession)
 {
-
+	_pSessionArray[iArrayIndex] = pSession;
 	return;
 }
 
@@ -215,6 +244,12 @@ void CMMOServer::SendPost(int Index)
 		return;
 	}
 
+	if (CNetSession::MODE_AUTH != _pSessionArray[Index]->_Mode && CNetSession::MODE_GAME != _pSessionArray[Index]->_Mode)
+	{
+		InterlockedExchange(&_pSessionArray[Index]->_SendFlag, false);
+		return;
+	}
+
 	WSABUF Buf[WSABUF_MAX];
 	CPacket *pPacket;
 	int BufNum;
@@ -251,7 +286,7 @@ void CMMOServer::SendPost(int Index)
 		return;
 	}
 	ZeroMemory(&_pSessionArray[Index]->_SendOver, sizeof(_pSessionArray[Index]->_SendOver));
-	if (SOCKET_ERROR == WSASend(_pSessionArray[Index]->_ClientInfo.Sock, Buf, BufNum, NULL, 0, &_pSessionArray[Index]->_SendOver, NULL));
+	if (SOCKET_ERROR == WSASend(_pSessionArray[Index]->_ClientInfo.Sock, Buf, BufNum, NULL, 0, &_pSessionArray[Index]->_SendOver, NULL))
 	{
 		int LastError = WSAGetLastError();
 		if (ERROR_IO_PENDING != LastError)
@@ -329,8 +364,8 @@ void CMMOServer::CompleteSend(int Index, DWORD Trans)
 		if (nullptr == pPacket)
 			break;
 		pPacket->Free();
-		_pSessionArray[Index]->_iSendPacketCnt--;
 	}
+	_pSessionArray[Index]->_iSendPacketCnt = 0;
 	InterlockedExchange(&_pSessionArray[Index]->_SendFlag, false);
 
 	return;
@@ -342,7 +377,7 @@ void CMMOServer::ProcAuth_Accept()
 	CLIENT_CONNECT_INFO *pInfo;
 	_AccpetSocketQueue.Dequeue(pInfo);
 
-	int Index;
+	int Index = NULL;
 	_BlankSessionStack.Pop(Index);
 
 	_pSessionArray[Index]->_iArrayIndex = Index;
@@ -409,31 +444,102 @@ void CMMOServer::ProcAuth_AuthToGame()
 
 void CMMOServer::ProcGame_AuthToGame()
 {
+	//	Game 모드로 전환
+	//	세션 배열을 돌면서 AUTH_TO_GAME 모드의 세션을 GAME 모드로 변경한다
+	//	나중에는 모드 변경 인원을 제한
+	//	현재는 테스트를 위해 무제한으로 변경
+	for (int i = 0; i < _iMaxSession; i++)
+	{
+		if (CNetSession::MODE_AUTH_TO_GAME == _pSessionArray[i]->_Mode)
+			_pSessionArray[i]->_Mode = CNetSession::MODE_GAME;
+	}
+	return;
+}
 
+void CMMOServer::ProcGame_LogoutInGame()
+{
+	//	GAME 모드 LogoutFlag 처리
+	//	세션 배열을 돌면서 GAME 모드에서 LogoutFlag가
+	//	true인 세션을 LOGOUT_IN_GAME 모드로 변경
+	for (int i = 0; i < _iMaxSession; i++)
+	{
+		if (CNetSession::MODE_GAME == _pSessionArray[i]->_Mode && true == _pSessionArray[i]->_LogOutFlag)
+		{
+			_pSessionArray[i]->_Mode = CNetSession::MODE_LOGOUT_IN_GAME;
+		}
+	}
 	return;
 }
 
 void CMMOServer::ProcGame_Logout()
 {
-
+	//	LOGOUT_IN_GAME 모드 릴리즈 단계 돌입
+	//	세션 배열을 돌면서 LOGOUT_IN_GAME 모드의 세션이
+	//	SendFlag (WSASend 보내기 작업이 없다는 확인)가 0인 경우
+	//	WAIT_LOGOUT으로 모드 변경
+	//	virtual OnGame_ClientLeave 호출
+	for (int i = 0; i < _iMaxSession; i++)
+	{
+		if (CNetSession::MODE_LOGOUT_IN_GAME == _pSessionArray[i]->_Mode && false == _pSessionArray[i]->_SendFlag)
+		{
+			_pSessionArray[i]->_Mode = CNetSession::MODE_WAIT_LOGOUT;
+			_pSessionArray[i]->OnGame_ClientLeave();
+		}
+	}
 	return;
 }
 
 void CMMOServer::ProcGame_Release()
 {
-
-	return;
-}
-
-unsigned __stdcall CMMOServer::AcceptThread(void *pParam)
-{
-	CMMOServer *pAcceptThread = (CMMOServer*)pParam;
-	if (NULL == pAcceptThread)
+	//	WAIT_LOGOUT 최종 릴리즈
+	//	세션 배열을 돌면서 WAIT_LOGOUT 모드의 세션을 최종적으로 릴리즈 처리한다. 
+	//	virtual OnGame_ClientRelease 호출
+	//	NONE_MODE로 바꾸고 플래그 바꿈
+	//	세션 초기화
+	//	해당 세션 배열 Index를 BlankSessionStack에 넣음
+	for (int i = 0; i < _iMaxSession; i++)
 	{
-		wprintf(L"[MMOServer :: AcceptThread] Init Error\n");
-		return false;
+		if (CNetSession::MODE_WAIT_LOGOUT == _pSessionArray[i]->_Mode)
+		{
+			_pSessionArray[i]->OnGame_ClientRelease();
+			_pSessionArray[i]->MODE_NONE;
+			_pSessionArray[i]->_iArrayIndex = NULL;
+			_pSessionArray[i]->_iSendPacketCnt = NULL;
+			_pSessionArray[i]->_iSendPacketSize = NULL;
+			_pSessionArray[i]->_SendFlag = false;
+			_pSessionArray[i]->_LogOutFlag = false;
+			_pSessionArray[i]->_AuthToGameFlag = false;
+			
+			while (0 != _pSessionArray[i]->_SendQ.GetUseCount())
+			{
+				//	애초에 큐에 패킷이 남아있으면 안됨..
+				CPacket *pPacket;
+				_pSessionArray[i]->_SendQ.Dequeue(pPacket);
+				pPacket->Free();
+			}
+			while (0 != _pSessionArray[i]->_CompleteRecvPacket.GetUseCount())
+			{
+				//	애초에 큐에 패킷이 남아있으면 안됨..
+				CPacket *pPacket;
+				_pSessionArray[i]->_CompleteRecvPacket.Dequeue(pPacket);
+				pPacket->Free();
+			}
+			while (0 != _pSessionArray[i]->_CompleteSendPacket.GetUseCount())
+			{
+				//	애초에 큐에 패킷이 남아있으면 안됨..
+				CPacket *pPacket;
+				_pSessionArray[i]->_CompleteSendPacket.Dequeue(pPacket);
+				pPacket->Free();
+			}
+
+			_pSessionArray[i]->_ClientInfo.ClientID = NULL;
+			_pSessionArray[i]->_ClientInfo.Port = NULL;
+			closesocket(_pSessionArray[i]->_ClientInfo.Sock);
+			_pSessionArray[i]->_ClientInfo.Sock = INVALID_SOCKET;
+			_BlankSessionStack.Push(i);
+		}
 	}
-	return true;
+	return;
 }
 
 bool CMMOServer::AcceptThread_update()
@@ -461,16 +567,6 @@ bool CMMOServer::AcceptThread_update()
 	return true;
 }
 
-unsigned __stdcall CMMOServer::AuthThread(void *pParam)
-{
-	CMMOServer *pAuthThread = (CMMOServer*)pParam;
-	if (NULL == pAuthThread)
-	{
-		wprintf(L"[MMOServer :: AuthThread] Init Error\n");
-		return false;
-	}
-	return true;
-}
 bool CMMOServer::AuthThread_update()
 {
 	int Count;
@@ -480,7 +576,7 @@ bool CMMOServer::AuthThread_update()
 		Count = 0;
 		_Monitor_Counter_AuthUpdate++;
 
-		while(!_AccpetSocketQueue.GetUseCount())
+		while(0 != _AccpetSocketQueue.GetUseCount())
 //		while (Count < AUTH_MAX)
 		{
 //			if (0 != _AccpetSocketQueue.GetUseCount())
@@ -515,61 +611,42 @@ bool CMMOServer::AuthThread_update()
 	return true;
 }
 
-unsigned __stdcall CMMOServer::GameUpdateThread(void *pParam)
-{
-	CMMOServer *pGameUpdateThread = (CMMOServer*)pParam;
-	if (NULL == pGameUpdateThread)
-	{
-		wprintf(L"[MMOServer :: GameUpdateThread] Init Error\n");
-		return false;
-	}
-	return true;
-}
-
 bool CMMOServer::GameUpdateThread_update()
 {
-	//	Game 모드로 전환
-	//	세션 배열을 돌면서 AUTH_TO_GAME 모드의 세션을 GAME 모드로 변경한다
-	ProcGame_AuthToGame();
-
-	//	GAME 모드 세션들 패킷 처리
-	//	세션 배열을 모두 돌면서 GAME 모드 세션을 확인하여
-	//	해당 세션의 CompleteRecvPacket 처리요청
-	//	virtual OnGame_Packet 호출
-	//	기본 패킷 1개 처리, 상황에 따라 N개 처리
-
-	//	GAME 모드의 Update 처리
-	//	클라이언트의 요청 (패킷수신) 외에 기본적으로 항시
-	//	처리되어야 할 게임 컨텐츠 부분 로직
-	//	virtual OnGame_Update 호출
-
-	//	GAME 모드 LogoutFlag 처리
-	//	세션 배열을 돌면서 GAME 모드에서 LogoutFlag가
-	//	true인 세션을 LOGOUT_IN_GAME 모드로 변경
-
-	//	LOGOUT_IN_GAME 모드 릴리즈 단계 돌입
-	//	세션 배열을 돌면서 LOGOUT_IN_GAME 모드의 세션이
-	//	SendFlag (WSASend 보내기 작업이 없다는 확인)가 0인 경우
-	//	WAIT_LOGOUT으로 모드 변경
-	//	virtual OnGame_ClientLeave 호출
-
-	//	WAIT_LOGOUT 최종 릴리즈
-	//	세션 배열을 돌면서 WAIT_LOGOUT 모드의 세션을 최종적으로 릴리즈 처리한다. 
-	//	virtual OnGame_ClientRelease 호출
-	//	NONE_MODE로 바꾸고 플래그 바꿈
-	//	세션 초기화
-	//	해당 세션 배열 Index를 BlankSessionStack에 넣음
-
-	return true;
-}
-
-unsigned __stdcall CMMOServer::IOCPWorkerThread(void *pParam)
-{
-	CMMOServer *pIOCPWorkerThread = (CMMOServer*)pParam;
-	if (NULL == pIOCPWorkerThread)
+	int Count;
+	while (!_bShutdown)
 	{
-		wprintf(L"[MMOServer :: IOCPWorkerThread] Init Error\n");
-		return false;
+		Sleep(1);
+		Count = 0;
+		_Monitor_Counter_GameUpdate++;
+		ProcGame_AuthToGame();
+
+		//	GAME 모드 세션들 패킷 처리
+		//	세션 배열을 모두 돌면서 GAME 모드 세션을 확인하여
+		//	해당 세션의 CompleteRecvPacket 처리요청
+		//	virtual OnGame_Packet 호출
+		//	기본 패킷 1개 처리, 상황에 따라 N개 처리
+		for (int i = 0; i < _iMaxSession; i++)
+		{
+			if (CNetSession::MODE_GAME == _pSessionArray[i]->_Mode && 0 != _pSessionArray[i]->_CompleteRecvPacket.GetUseCount())
+			{
+				Count = 0;
+				while (Count < GAME_MAX)
+				{
+					if (0 == _pSessionArray[i]->_CompleteRecvPacket.GetUseCount())
+						break;
+					CPacket *pPacket;
+					_pSessionArray[i]->_CompleteRecvPacket.Dequeue(pPacket);
+					_pSessionArray[i]->OnGame_Packet(pPacket);
+					pPacket->Free();
+					Count++;
+				}
+			}
+		}
+		OnGame_Update();
+		ProcGame_LogoutInGame();
+		ProcGame_Logout();
+		ProcGame_Release();
 	}
 	return true;
 }
@@ -607,17 +684,6 @@ bool CMMOServer::IOCPWorkerThread_update()
 		}
 
 		SessionAcquireFree(*Index);
-	}
-	return true;
-}
-
-unsigned __stdcall CMMOServer::SendThread(void *pParam)
-{
-	CMMOServer *pSendThread = (CMMOServer*)pParam;
-	if (NULL == pSendThread)
-	{
-		wprintf(L"[MMOServer :: SendThread] Init Error\n");
-		return false;
 	}
 	return true;
 }

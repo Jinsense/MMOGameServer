@@ -1,25 +1,14 @@
+#include <conio.h>
+
 #include "Config.h"
 #include "GameServer.h"
 
-//# MMOServer 더미 사용패킷
-//
-//== Auth 스레드
-//
-//en_PACKET_CS_GAME_REQ_LOGIN
-//en_PACKET_CS_GAME_RES_LOGIN
-//
-//처리 후 게임모드로 전환
-//
-//== Game 스레드
-//
-//en_PACKET_CS_GAME_REQ_ECHO
-//en_PACKET_CS_GAME_RES_ECHO
-//
-//
-//이외의 패킷은 사용하지 않습니다.
-
 int main()
 {
+	SYSTEM_INFO SysInfo;
+	GetSystemInfo(&SysInfo);
+	bool bFlag = true;
+	int In;
 	CConfig Config;
 	if (false == Config.Set())
 	{
@@ -27,8 +16,33 @@ int main()
 	}
 
 	CGameServer Server(Config.CLIENT_MAX);
-	
-	
 
+	if (false == Server.Start(Config.BIND_IP, Config.BIND_PORT, Config.WORKER_THREAD, true, Config.PACKET_CODE, Config.PACKET_KEY1, Config.PACKET_KEY2))
+	{
+		{
+			wprintf(L"[Main :: Server Start] Error\n");
+			return 0;
+		}
+	}
+	Server.MonitorInit();
+
+	while (bFlag)
+	{
+		In = _getch();
+		switch (In)
+		{
+		case 'q': case 'Q':
+		{
+			bFlag = false;
+			
+		}
+		break;
+		case 'm': case 'M':
+		{
+			Server.MonitorOnOff();
+		}
+		break;
+		}
+	}
 	return true;
 }
