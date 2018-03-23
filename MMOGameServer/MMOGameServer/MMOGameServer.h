@@ -47,6 +47,7 @@ public:
 	bool SessionAcquireFree(int Index);
 private:
 	void Error(int ErrorCode, WCHAR *szFormatStr, ...);
+	void StartRecvPost(int Index);
 	void RecvPost(int Index);
 	void SendPost(int Index);
 	void CompleteRecv(int Index, DWORD Trans);

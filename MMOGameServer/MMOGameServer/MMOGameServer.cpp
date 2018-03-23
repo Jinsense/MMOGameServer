@@ -192,11 +192,52 @@ void CMMOServer::Error(int ErrorCode, WCHAR *szFormatStr, ...)
 	return;
 }
 
+void CMMOServer::StartRecvPost(int Index)
+{
+	DWORD Flag = 0;
+	ZeroMemory(&_pSessionArray[Index]->_RecvOver, sizeof(_pSessionArray[Index]->_RecvOver));
+
+	WSABUF Buf[2];
+	DWORD FreeSize = _pSessionArray[Index]->_RecvQ.GetFreeSize();
+	DWORD NotBrokenPushSize = _pSessionArray[Index]->_RecvQ.GetNotBrokenPushSize();
+	if (0 == FreeSize && 0 == NotBrokenPushSize)
+	{
+		if (true == SessionAcquireFree(Index))
+		{
+			_pLog->Log(L"Error", LOG_SYSTEM, L"RecvPost - RecvQ Full [Index : %d]", Index);
+			shutdown(_pSessionArray[Index]->_ClientInfo.Sock, SD_BOTH);
+		}
+	}
+
+	int NumOfBuf = (NotBrokenPushSize < FreeSize) ? 2 : 1;
+
+	Buf[0].buf = _pSessionArray[Index]->_RecvQ.GetWriteBufferPtr();
+	Buf[0].len = NotBrokenPushSize;
+
+	if (2 == NumOfBuf)
+	{
+		Buf[1].buf = _pSessionArray[Index]->_RecvQ.GetBufferPtr();
+		Buf[1].len = FreeSize - NotBrokenPushSize;
+	}
+
+	if (SOCKET_ERROR == WSARecv(_pSessionArray[Index]->_ClientInfo.Sock, Buf, NumOfBuf, NULL, &Flag, &_pSessionArray[Index]->_RecvOver, NULL))
+	{
+		int LastError = WSAGetLastError();
+		if (ERROR_IO_PENDING != LastError)
+		{
+			if (true != SessionAcquireFree(Index))
+				shutdown(_pSessionArray[Index]->_ClientInfo.Sock, SD_BOTH);
+		}
+	}
+	return;
+}
+
 void CMMOServer::RecvPost(int Index)
 {
 	if (false == SessionAcquireLock(Index))
 		return;
 
+	DWORD Flag = 0;
 	ZeroMemory(&_pSessionArray[Index]->_RecvOver, sizeof(_pSessionArray[Index]->_RecvOver));
 	
 	WSABUF Buf[2];
@@ -210,6 +251,7 @@ void CMMOServer::RecvPost(int Index)
 			shutdown(_pSessionArray[Index]->_ClientInfo.Sock, SD_BOTH);
 		}
 	}
+
 	int NumOfBuf = (NotBrokenPushSize < FreeSize) ? 2 : 1;
 
 	Buf[0].buf = _pSessionArray[Index]->_RecvQ.GetWriteBufferPtr();
@@ -221,12 +263,12 @@ void CMMOServer::RecvPost(int Index)
 		Buf[1].len = FreeSize - NotBrokenPushSize;
 	}
 
-	if (SOCKET_ERROR == WSARecv(_pSessionArray[Index]->_ClientInfo.Sock, Buf, NumOfBuf, NULL, NULL, &_pSessionArray[Index]->_RecvOver, NULL))
+	if (SOCKET_ERROR == WSARecv(_pSessionArray[Index]->_ClientInfo.Sock, Buf, NumOfBuf, NULL, &Flag, &_pSessionArray[Index]->_RecvOver, NULL))
 	{
 		int LastError = WSAGetLastError();
 		if (ERROR_IO_PENDING != LastError)
 		{
-			if(true == SessionAcquireFree(Index))
+			if(true != SessionAcquireFree(Index))
 				shutdown(_pSessionArray[Index]->_ClientInfo.Sock, SD_BOTH);
 		}
 	}
@@ -249,6 +291,8 @@ void CMMOServer::SendPost(int Index)
 		InterlockedExchange(&_pSessionArray[Index]->_SendFlag, false);
 		return;
 	}
+
+	_Monitor_Counter_Send++;
 
 	WSABUF Buf[WSABUF_MAX];
 	CPacket *pPacket;
@@ -291,12 +335,13 @@ void CMMOServer::SendPost(int Index)
 		int LastError = WSAGetLastError();
 		if (ERROR_IO_PENDING != LastError)
 		{
-			if (true == SessionAcquireFree(Index))
-			{
+			SessionAcquireFree(Index);
+//			if (true != SessionAcquireFree(Index))
+//			{
 				shutdown(_pSessionArray[Index]->_ClientInfo.Sock, SD_BOTH);
 				InterlockedExchange(&_pSessionArray[Index]->_SendFlag, false);
 				return;
-			}
+//			}
 		}
 	}
 	return;
@@ -350,6 +395,8 @@ void CMMOServer::CompleteRecv(int Index, DWORD Trans)
 		pPacket->m_header.CheckSum = _Header.CheckSum;
 		pPacket->PopData(sizeof(CPacket::st_PACKET_HEADER));
 		_pSessionArray[Index]->_CompleteRecvPacket.Enqueue(pPacket);
+
+		_Monitor_Counter_Recv++;
 	}
 	RecvPost(Index);
 	return;
@@ -373,6 +420,8 @@ void CMMOServer::CompleteSend(int Index, DWORD Trans)
 
 void CMMOServer::ProcAuth_Accept()
 {
+	_Monitor_SessionAuthMode++;
+
 	// 신규 접속자 처리
 	CLIENT_CONNECT_INFO *pInfo;
 	_AccpetSocketQueue.Dequeue(pInfo);
@@ -389,15 +438,16 @@ void CMMOServer::ProcAuth_Accept()
 	_pSessionArray[Index]->_RecvQ.Clear();
 	InterlockedIncrement(&_pSessionArray[Index]->_IOCount);
 
-	//	클라이언트 정보가 제대로 복사되는지
-	_pSessionArray[Index]->_ClientInfo = *pInfo;
+	_pSessionArray[Index]->_ClientInfo.ClientID = pInfo->ClientID;
+	strcpy_s(_pSessionArray[Index]->_ClientInfo.IP, sizeof(_pSessionArray[Index]->_ClientInfo.IP), pInfo->IP);
+	_pSessionArray[Index]->_ClientInfo.Port = pInfo->Port;
+	_pSessionArray[Index]->_ClientInfo.Sock = pInfo->Sock;
 
-	//	삭제되도 이상 없는지 ClientInfo가 이상 없는지
 	_pMemoryPool_ConnectInfo->Free(pInfo);
 
 	CreateIOCP_Socket(_pSessionArray[Index]->_ClientInfo.Sock, Index);
 	_pSessionArray[Index]->OnAuth_ClientJoin();
-	RecvPost(Index);
+	StartRecvPost(Index);
 	return;
 }
 
@@ -407,7 +457,10 @@ void CMMOServer::ProcAuth_LogoutInAuth()
 	for (int i = 0; i < _iMaxSession; i++)
 	{
 		if (CNetSession::MODE_AUTH == _pSessionArray[i]->_Mode && true == _pSessionArray[i]->_LogOutFlag)
+		{
 			_pSessionArray[i]->_Mode = CNetSession::MODE_LOGOUT_IN_AUTH;
+			_Monitor_SessionAuthMode--;
+		}
 	}
 	return;
 }
@@ -437,6 +490,7 @@ void CMMOServer::ProcAuth_AuthToGame()
 		{
 			_pSessionArray[i]->_Mode = CNetSession::MODE_AUTH_TO_GAME;
 			_pSessionArray[i]->OnAuth_ClientLeave();
+			_Monitor_SessionAuthMode--;
 		}
 	}
 	return;
@@ -451,7 +505,10 @@ void CMMOServer::ProcGame_AuthToGame()
 	for (int i = 0; i < _iMaxSession; i++)
 	{
 		if (CNetSession::MODE_AUTH_TO_GAME == _pSessionArray[i]->_Mode)
+		{
 			_pSessionArray[i]->_Mode = CNetSession::MODE_GAME;
+			_Monitor_SessionGameMode++;
+		}
 	}
 	return;
 }
@@ -466,6 +523,7 @@ void CMMOServer::ProcGame_LogoutInGame()
 		if (CNetSession::MODE_GAME == _pSessionArray[i]->_Mode && true == _pSessionArray[i]->_LogOutFlag)
 		{
 			_pSessionArray[i]->_Mode = CNetSession::MODE_LOGOUT_IN_GAME;
+			_Monitor_SessionGameMode--;
 		}
 	}
 	return;
@@ -502,7 +560,7 @@ void CMMOServer::ProcGame_Release()
 		if (CNetSession::MODE_WAIT_LOGOUT == _pSessionArray[i]->_Mode)
 		{
 			_pSessionArray[i]->OnGame_ClientRelease();
-			_pSessionArray[i]->MODE_NONE;
+			_pSessionArray[i]->_Mode = CNetSession::MODE_NONE;
 			_pSessionArray[i]->_iArrayIndex = NULL;
 			_pSessionArray[i]->_iSendPacketCnt = NULL;
 			_pSessionArray[i]->_iSendPacketSize = NULL;
@@ -536,6 +594,9 @@ void CMMOServer::ProcGame_Release()
 			_pSessionArray[i]->_ClientInfo.Port = NULL;
 			closesocket(_pSessionArray[i]->_ClientInfo.Sock);
 			_pSessionArray[i]->_ClientInfo.Sock = INVALID_SOCKET;
+
+			InterlockedDecrement(&_Monitor_SessionAllMode);
+
 			_BlankSessionStack.Push(i);
 		}
 	}
@@ -639,6 +700,7 @@ bool CMMOServer::GameUpdateThread_update()
 					_pSessionArray[i]->_CompleteRecvPacket.Dequeue(pPacket);
 					_pSessionArray[i]->OnGame_Packet(pPacket);
 					pPacket->Free();
+//					SessionAcquireLock(i);
 					Count++;
 				}
 			}
@@ -658,32 +720,32 @@ bool CMMOServer::IOCPWorkerThread_update()
 	while (!_bShutdown)
 	{
 		OVERLAPPED * pOver = NULL;
-		int  *Index = NULL;
+		int  Index = _iMaxSession + 1;
 		DWORD Trans = 0;
 		
 		Retval = GetQueuedCompletionStatus(_hIOCP, &Trans, (PULONG_PTR)&Index, (LPWSAOVERLAPPED*)&pOver, INFINITE);
 
 		if (nullptr == pOver)
 		{
-			if (nullptr == Index && 0 == Trans)
+			if (_iMaxSession < Index && 0 == Trans)
 			{
 				PostQueuedCompletionStatus(_hIOCP, 0, 0, 0);
 			}
 		}
-		if (0 == Trans)
+		else if (0 == Trans)
 		{
-			shutdown(_pSessionArray[*Index]->_ClientInfo.Sock, SD_BOTH);
+			shutdown(_pSessionArray[Index]->_ClientInfo.Sock, SD_BOTH);
 		}
-		else if (pOver == &_pSessionArray[*Index]->_RecvOver)
+		else if (pOver == &_pSessionArray[Index]->_RecvOver)
 		{
-			CompleteRecv(*Index, Trans);
+			CompleteRecv(Index, Trans);
 		}
-		else if (pOver == &_pSessionArray[*Index]->_SendOver)
+		else if (pOver == &_pSessionArray[Index]->_SendOver)
 		{
-			CompleteSend(*Index, Trans);
+			CompleteSend(Index, Trans);
 		}
 
-		SessionAcquireFree(*Index);
+		SessionAcquireFree(Index);
 	}
 	return true;
 }
@@ -692,6 +754,7 @@ bool CMMOServer::SendThread_update()
 {
 	while (!_bShutdown)
 	{
+		_Monitor_Counter_PacketSend++;
 		Sleep(5);
 		for (int i = 0; i < _iMaxSession; i++)
 		{
@@ -700,11 +763,11 @@ bool CMMOServer::SendThread_update()
 				CNetSession::MODE_WAIT_LOGOUT == _pSessionArray[i]->_Mode)
 				continue;
 
-			if (false == SessionAcquireLock(i))
-				continue;
+//			if (false == SessionAcquireLock(i))
+//				continue;
 			
 			SendPost(i);
-			SessionAcquireLock(i);
+//			SessionAcquireFree(i);
 		}
 	}
 	return true;

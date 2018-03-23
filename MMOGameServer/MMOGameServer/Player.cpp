@@ -49,6 +49,8 @@ void CPlayer::OnAuth_Packet(CPacket *pPacket)
 		pPacket->PopData((char*)_SessionKey, sizeof(_SessionKey));
 		*pPacket >> _Version;
 
+		_AuthToGameFlag = true;
+
 		CPacket *pNewPacket = CPacket::Alloc();
 		Type = en_PACKET_CS_GAME_RES_LOGIN;
 		BYTE Status = 1;

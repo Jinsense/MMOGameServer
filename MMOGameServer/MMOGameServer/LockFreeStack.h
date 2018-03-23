@@ -30,7 +30,7 @@ public:
 	~CLockFreeStack();
 
 	void Push(Type Data);
-	void Pop(Type Data);
+	void Pop(Type &Data);
 
 	long GetUseCount();
 
@@ -88,7 +88,7 @@ inline void CLockFreeStack<Type>::Push(Type Data)
 }
 
 template<class Type>
-inline void CLockFreeStack<Type>::Pop(Type Data)
+inline void CLockFreeStack<Type>::Pop(Type &Data)
 {
 	if (InterlockedDecrement(&m_lUseCount) < 0)
 	{
