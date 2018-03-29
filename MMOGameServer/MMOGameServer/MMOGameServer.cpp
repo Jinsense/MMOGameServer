@@ -755,7 +755,7 @@ bool CMMOServer::SendThread_update()
 	while (!_bShutdown)
 	{
 		_Monitor_Counter_PacketSend++;
-		Sleep(5);
+		Sleep(1);
 		for (int i = 0; i < _iMaxSession; i++)
 		{
 			if (CNetSession::MODE_NONE == _pSessionArray[i]->_Mode || true == _pSessionArray[i]->_SendFlag || true == _pSessionArray[i]->_LogOutFlag ||
