@@ -150,6 +150,7 @@
     <ClInclude Include="Log.h" />
     <ClInclude Include="MemoryPool.h" />
     <ClInclude Include="MMOGameServer.h" />
+    <ClInclude Include="MonitorProtocol.h" />
     <ClInclude Include="Packet.h" />
     <ClInclude Include="Parse.h" />
     <ClInclude Include="Player.h" />

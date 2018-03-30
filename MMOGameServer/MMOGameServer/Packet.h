@@ -58,7 +58,7 @@ public:
 	static void		MemoryPoolInit();
 	static void		Init(BYTE byCode, BYTE byPacketKey1, BYTE byPacketKey2);
 
-	//	static __int64	GetUsePool() { return m_pMemoryPool->GetUseCount(); }
+//	static __int64	GetUsePool() { return m_pMemoryPool->_UseCount; }
 	static __int64	GetAllocPool() { return m_pMemoryPool->GetAllocCount(); }
 
 	void	AddRef();

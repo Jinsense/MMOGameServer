@@ -197,6 +197,8 @@ public:
 	long		_Monitor_Counter_PacketSend;	//	1초 당 SendThread 루프 횟수
 
 	CSystemLog	*_pLog;
+
+	
 };
 
 #endif

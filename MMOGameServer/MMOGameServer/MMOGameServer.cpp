@@ -633,7 +633,7 @@ bool CMMOServer::AuthThread_update()
 	int Count;
 	while (!_bShutdown)
 	{
-		Sleep(5);
+		Sleep(1);
 		Count = 0;
 		_Monitor_Counter_AuthUpdate++;
 
@@ -679,7 +679,8 @@ bool CMMOServer::GameUpdateThread_update()
 	{
 		Sleep(1);
 		Count = 0;
-		_Monitor_Counter_GameUpdate++;
+		InterlockedIncrement(&_Monitor_Counter_GameUpdate);
+//		_Monitor_Counter_GameUpdate++;
 		ProcGame_AuthToGame();
 
 		//	GAME 모드 세션들 패킷 처리
@@ -755,7 +756,7 @@ bool CMMOServer::SendThread_update()
 	while (!_bShutdown)
 	{
 		_Monitor_Counter_PacketSend++;
-		Sleep(1);
+		Sleep(0);
 		for (int i = 0; i < _iMaxSession; i++)
 		{
 			if (CNetSession::MODE_NONE == _pSessionArray[i]->_Mode || true == _pSessionArray[i]->_SendFlag || true == _pSessionArray[i]->_LogOutFlag ||

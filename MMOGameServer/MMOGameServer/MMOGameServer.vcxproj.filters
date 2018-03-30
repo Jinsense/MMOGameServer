@@ -28,6 +28,9 @@
     <Filter Include="Parse">
       <UniqueIdentifier>{2527c7a4-a3c9-40cf-ab65-7999aa4416cd}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Monitor">
+      <UniqueIdentifier>{c746665d-4e00-4cd9-836f-58274100c95e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
@@ -121,6 +124,9 @@
       <Filter>LanClient</Filter>
     </ClInclude>
     <ClInclude Include="CommonProtocol.h">
+      <Filter>Network</Filter>
+    </ClInclude>
+    <ClInclude Include="MonitorProtocol.h">
       <Filter>Network</Filter>
     </ClInclude>
   </ItemGroup>
