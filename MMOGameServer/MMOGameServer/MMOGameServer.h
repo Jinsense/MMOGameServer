@@ -13,8 +13,8 @@
 #include "Log.h"
 #include "Dump.h"
 
-#define		WORKER_THREAD_MAX		3
-#define		WSABUF_MAX				300
+#define		WORKER_THREAD_MAX		10
+#define		WSABUF_MAX				200
 #define		AUTH_MAX				5
 #define		GAME_MAX				3
 #define		RELEASE_MAX				100

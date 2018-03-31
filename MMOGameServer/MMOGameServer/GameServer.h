@@ -4,6 +4,8 @@
 #include <Pdh.h>
 
 #include "MonitorProtocol.h"
+#include "CpuUsage.h"
+#include "EtherNet_PDH.h"
 #include "LanClient.h"
 #include "MMOGameServer.h"
 
@@ -72,11 +74,16 @@ public:
 private:
 	bool	_bMonitor;
 	CPlayer *_pPlayer;
+	CCpuUsage _Cpu;
+	CEthernet _Ethernet;
 	HANDLE	_hMonitorThread;
 
 	PDH_HQUERY		_CpuQuery;
 	PDH_HCOUNTER	_MemoryAvailableMBytes;
 	PDH_HCOUNTER	_MemoryNonpagedBytes;
+	PDH_HCOUNTER	_ProcessPrivateBytes;
+	PDH_FMT_COUNTERVALUE _CounterVal;
+
 };
 
 #endif

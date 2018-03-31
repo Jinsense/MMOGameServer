@@ -30,6 +30,12 @@ CGameServer::CGameServer(int iMaxSession) : CMMOServer(iMaxSession)
 
 	_pMonitor = new CLanClient;
 	_pMonitor->Constructor(this);
+
+	PdhOpenQuery(NULL, NULL, &_CpuQuery);
+	PdhAddCounter(_CpuQuery, L"\\Memory\\Pool Nonpaged Bytes", NULL, &_MemoryAvailableMBytes);
+	PdhAddCounter(_CpuQuery, L"\\Memory\\Pool Nonpaged Bytes", NULL, &_MemoryNonpagedBytes);
+	PdhAddCounter(_CpuQuery, L"\\Process(MMOGameServer)\\Private Bytes", NULL, &_ProcessPrivateBytes);
+	PdhCollectQueryData(_CpuQuery);
 }
 
 CGameServer::~CGameServer()
@@ -98,8 +104,12 @@ bool CGameServer::MonitorThread_update()
 	while (!_bShutdown)
 	{
 		Sleep(1000);
+
+		_Cpu.UpdateCpuTime();
+		_Ethernet.Count();
 		Timer = time(NULL);
 		localtime_s(pTime, &Timer);
+
 		if (true == _bMonitor)
 		{
 			wprintf(L"\n\n");
@@ -124,7 +134,12 @@ bool CGameServer::MonitorThread_update()
 			wprintf(L"	Game   Thread FPS	:	%d\n\n", _Monitor_Counter_GameUpdate);
 
 			wprintf(L"	MemoryPool Alloc	:	%d\n", CPacket::GetAllocPool());
-			wprintf(L"	Alloc / Free		:	%d\n", CPacket::_UseCount);
+			wprintf(L"	Alloc / Free		:	%d\n\n", CPacket::_UseCount);
+
+			wprintf(L"	CPU Total		:	%.2f%\n", _Cpu.ProcessorTotal());
+			wprintf(L"	GameServer CPU		:	%.2f%\n", _Cpu.ProcessTotal());
+			wprintf(L"	Ethernet Recv MBytes	:	%.2f\n", _Ethernet._pdh_value_Network_RecvBytes / (1024 * 1024));
+			wprintf(L"	Ethernet Send MBytes	:	%.2f\n", _Ethernet._pdh_value_Network_SendBytes / (1024 * 1024));
 		}
 		_Monitor_Counter_Recv = 0;
 		_Monitor_Counter_Send = 0;
@@ -132,6 +147,8 @@ bool CGameServer::MonitorThread_update()
 		_Monitor_Counter_PacketSend = 0;
 		_Monitor_Counter_AuthUpdate = 0;
 		_Monitor_Counter_GameUpdate = 0;
+		_Ethernet._pdh_value_Network_RecvBytes = 0;
+		_Ethernet._pdh_value_Network_SendBytes = 0;
 	}
 	return true;
 }
@@ -141,8 +158,14 @@ bool CGameServer::LanMonitorThread_Update()
 	while (1)
 	{
 		Sleep(500);
-
-
+		PdhCollectQueryData(_CpuQuery);
+		PdhGetFormattedCounterValue(_MemoryNonpagedBytes, PDH_FMT_DOUBLE, NULL, &_CounterVal);
+		_Nonpaged_Memory = _CounterVal.doubleValue;
+		PdhGetFormattedCounterValue(_MemoryAvailableMBytes, PDH_FMT_DOUBLE, NULL, &_CounterVal);
+		_Available_Memory = _CounterVal.doubleValue;
+		PdhGetFormattedCounterValue(_ProcessPrivateBytes, PDH_FMT_DOUBLE, NULL, &_CounterVal);
+		_BattleServer_Memory_Commit = _CounterVal.doubleValue;
+		//	시스템 측정 쿼리 갱신
 
 		MakePacket(dfMONITOR_DATA_TYPE_SERVER_CPU_TOTAL);
 		MakePacket(dfMONITOR_DATA_TYPE_SERVER_AVAILABLE_MEMORY);
@@ -166,14 +189,16 @@ bool CGameServer::LanMonitorThread_Update()
 
 bool CGameServer::MakePacket(BYTE DataType)
 {
-	time_t now;
-	localtime(&now);
-	_TimeStamp = now;
+	struct tm *pTime = new struct tm;
+	time_t Now;
+	localtime_s(pTime, &Now);
+	_TimeStamp = Now;
 	WORD Type = en_PACKET_SS_MONITOR_DATA_UPDATE;
 	switch (DataType)
 	{
 	case dfMONITOR_DATA_TYPE_SERVER_CPU_TOTAL:
 	{
+		_CPU_Total = _Cpu.ProcessorTotal();
 		CPacket *pPacket = CPacket::Alloc();
 		*pPacket << Type << DataType << _CPU_Total << _TimeStamp;
 		_pMonitor->SendPacket(pPacket);
@@ -182,6 +207,7 @@ bool CGameServer::MakePacket(BYTE DataType)
 	break;
 	case dfMONITOR_DATA_TYPE_SERVER_AVAILABLE_MEMORY:
 	{
+		//	사용가능 메모리 얻기
 		CPacket *pPacket = CPacket::Alloc();
 		*pPacket << Type << DataType << _Available_Memory << _TimeStamp;
 		_pMonitor->SendPacket(pPacket);
@@ -190,6 +216,7 @@ bool CGameServer::MakePacket(BYTE DataType)
 	break;
 	case dfMONITOR_DATA_TYPE_SERVER_NETWORK_RECV:
 	{
+		_Network_Recv = _Ethernet._pdh_value_Network_RecvBytes;
 		CPacket *pPacket = CPacket::Alloc();
 		*pPacket << Type << DataType << _Network_Recv << _TimeStamp;
 		_pMonitor->SendPacket(pPacket);
@@ -198,6 +225,7 @@ bool CGameServer::MakePacket(BYTE DataType)
 	break;
 	case dfMONITOR_DATA_TYPE_SERVER_NETWORK_SEND:
 	{
+		_Network_Send = _Ethernet._pdh_value_Network_SendBytes;
 		CPacket *pPacket = CPacket::Alloc();
 		*pPacket << Type << DataType << _Network_Send << _TimeStamp;
 		_pMonitor->SendPacket(pPacket);
@@ -206,6 +234,7 @@ bool CGameServer::MakePacket(BYTE DataType)
 	break;
 	case dfMONITOR_DATA_TYPE_SERVER_NONPAGED_MEMORY:
 	{
+		//	논페이지드 메모리 얻기
 		CPacket *pPacket = CPacket::Alloc();
 		*pPacket << Type << DataType << _Nonpaged_Memory << _TimeStamp;
 		_pMonitor->SendPacket(pPacket);
@@ -222,6 +251,7 @@ bool CGameServer::MakePacket(BYTE DataType)
 	break;
 	case dfMONITOR_DATA_TYPE_BATTLE_CPU:
 	{
+		_BattleServer_CPU = _Cpu.ProcessTotal();
 		CPacket *pPacket = CPacket::Alloc();
 		*pPacket << Type << DataType << _BattleServer_CPU << _TimeStamp;
 		_pMonitor->SendPacket(pPacket);
@@ -230,6 +260,7 @@ bool CGameServer::MakePacket(BYTE DataType)
 	break;
 	case dfMONITOR_DATA_TYPE_BATTLE_MEMORY_COMMIT:
 	{
+		//	메모리 커밋(private)MByte
 		CPacket *pPacket = CPacket::Alloc();
 		*pPacket << Type << DataType << _BattleServer_Memory_Commit << _TimeStamp;
 		_pMonitor->SendPacket(pPacket);
@@ -293,6 +324,7 @@ bool CGameServer::MakePacket(BYTE DataType)
 	default:
 		break;
 	}
+	delete pTime;
 	return true;
 }
 

@@ -17,7 +17,6 @@ using namespace std;
 
 CMMOServer::CMMOServer(int iMaxSession) : _iMaxSession(iMaxSession)
 {
-
 	timeBeginPeriod(1);
 
 	_bShutdown = false;
@@ -633,7 +632,7 @@ bool CMMOServer::AuthThread_update()
 	int Count;
 	while (!_bShutdown)
 	{
-		Sleep(1);
+		Sleep(5);
 		Count = 0;
 		_Monitor_Counter_AuthUpdate++;
 
@@ -755,7 +754,6 @@ bool CMMOServer::SendThread_update()
 {
 	while (!_bShutdown)
 	{
-		_Monitor_Counter_PacketSend++;
 		Sleep(0);
 		for (int i = 0; i < _iMaxSession; i++)
 		{
@@ -770,6 +768,7 @@ bool CMMOServer::SendThread_update()
 			SendPost(i);
 //			SessionAcquireFree(i);
 		}
+		_Monitor_Counter_PacketSend++;
 	}
 	return true;
 }

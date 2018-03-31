@@ -73,6 +73,12 @@
     <ClCompile Include="LanClient.cpp">
       <Filter>LanClient</Filter>
     </ClCompile>
+    <ClCompile Include="CpuUsage.cpp">
+      <Filter>Monitor</Filter>
+    </ClCompile>
+    <ClCompile Include="EtherNet_PDH.cpp">
+      <Filter>Monitor</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Config.h">
@@ -128,6 +134,12 @@
     </ClInclude>
     <ClInclude Include="MonitorProtocol.h">
       <Filter>Network</Filter>
+    </ClInclude>
+    <ClInclude Include="CpuUsage.h">
+      <Filter>Monitor</Filter>
+    </ClInclude>
+    <ClInclude Include="EtherNet_PDH.h">
+      <Filter>Monitor</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
