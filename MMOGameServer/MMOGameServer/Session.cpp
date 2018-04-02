@@ -2,11 +2,12 @@
 
 #include "Session.h"
 
-CNetSession::CNetSession() : _RecvQ(BUF)
+CNetSession::CNetSession() : _RecvQ(BUF), _SendQ(BUF), _CompleteSendPacket(BUF)
 {
 	_Mode = MODE_NONE;
 	_iArrayIndex = NULL;
 	_RecvQ.Clear();
+	_SendQ.Clear();
 	_iSendPacketCnt = NULL;
 	_iSendPacketSize = NULL;
 	_SendFlag = false;
@@ -24,7 +25,10 @@ void CNetSession::SendPacket(CPacket *pPacket)
 {
 	pPacket->AddRef();
 	pPacket->EnCode();
-	_SendQ.Enqueue(pPacket);
+	_SendQ.Enqueue((char*)&pPacket, sizeof(CPacket*));
+	if (nullptr == pPacket)
+		g_CrashDump->Crash();
+//	_SendQ.Enqueue(pPacket);
 	return;
 }
 

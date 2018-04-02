@@ -75,6 +75,7 @@ void CGameServer::OnError(int iErrorCode, WCHAR *szError)
 bool CGameServer::MonitorInit()
 {
 	_hMonitorThread = (HANDLE)_beginthreadex(NULL, 0, &MonitorThread, (LPVOID)this, 0, NULL);
+	_hLanMonitorThread = (HANDLE)_beginthreadex(NULL, 0, &LanMonitorThread, (LPVOID)this, 0, NULL);
 	return true;
 }
 
@@ -123,8 +124,8 @@ bool CGameServer::MonitorThread_update()
 			wprintf(L"	SessionAuth 		:	%d\n", _Monitor_SessionAuthMode);
 			wprintf(L"	SessionGame		:	%d\n\n", _Monitor_SessionGameMode);
 			
-			wprintf(L"	Recv TPS		:	%d\n", _Monitor_Counter_Recv);
-			wprintf(L"	Send TPS		:	%d\n\n", _Monitor_Counter_Send);
+			wprintf(L"	Recv TPS		:	%d		Recv Avr : %d\n", _Monitor_Counter_Recv, _Monitor_Counter_RecvAvr);
+			wprintf(L"	Send TPS		:	%d		Send Avr : %d\n\n", _Monitor_Counter_Send, _Monitor_Counter_SendAvr);
 
 			wprintf(L"	AcceptTotal		:	%I64d\n\n", _Monitor_AcceptTotal);
 
@@ -133,14 +134,16 @@ bool CGameServer::MonitorThread_update()
 			wprintf(L"	Auth   Thread FPS	:	%d\n", _Monitor_Counter_AuthUpdate);
 			wprintf(L"	Game   Thread FPS	:	%d\n\n", _Monitor_Counter_GameUpdate);
 
-			wprintf(L"	MemoryPool Alloc	:	%d\n", CPacket::GetAllocPool());
+			wprintf(L"	MemoryPool Alloc	:	%I64d\n", CPacket::GetAllocPool());
 			wprintf(L"	Alloc / Free		:	%d\n\n", CPacket::_UseCount);
 
-			wprintf(L"	CPU Total		:	%.2f%\n", _Cpu.ProcessorTotal());
-			wprintf(L"	GameServer CPU		:	%.2f%\n", _Cpu.ProcessTotal());
+			wprintf(L"	CPU Total		:	%.2f%%\n", _Cpu.ProcessorTotal());
+			wprintf(L"	GameServer CPU		:	%.2f%%\n", _Cpu.ProcessTotal());
 			wprintf(L"	Ethernet Recv MBytes	:	%.2f\n", _Ethernet._pdh_value_Network_RecvBytes / (1024 * 1024));
 			wprintf(L"	Ethernet Send MBytes	:	%.2f\n", _Ethernet._pdh_value_Network_SendBytes / (1024 * 1024));
 		}
+		_Monitor_Counter_RecvAvr = (_Monitor_Counter_RecvAvr + _Monitor_Counter_Recv) / 2;
+		_Monitor_Counter_SendAvr = (_Monitor_Counter_SendAvr + _Monitor_Counter_Send) / 2;
 		_Monitor_Counter_Recv = 0;
 		_Monitor_Counter_Send = 0;
 		_Monitor_AcceptSocket = 0;
@@ -157,14 +160,14 @@ bool CGameServer::LanMonitorThread_Update()
 {	
 	while (1)
 	{
-		Sleep(500);
+		Sleep(1000);
 		PdhCollectQueryData(_CpuQuery);
 		PdhGetFormattedCounterValue(_MemoryNonpagedBytes, PDH_FMT_DOUBLE, NULL, &_CounterVal);
-		_Nonpaged_Memory = _CounterVal.doubleValue;
+		_Nonpaged_Memory = (int)_CounterVal.doubleValue;
 		PdhGetFormattedCounterValue(_MemoryAvailableMBytes, PDH_FMT_DOUBLE, NULL, &_CounterVal);
-		_Available_Memory = _CounterVal.doubleValue;
+		_Available_Memory = (int)_CounterVal.doubleValue;
 		PdhGetFormattedCounterValue(_ProcessPrivateBytes, PDH_FMT_DOUBLE, NULL, &_CounterVal);
-		_BattleServer_Memory_Commit = _CounterVal.doubleValue;
+		_BattleServer_Memory_Commit = (int)_CounterVal.doubleValue;
 		//	시스템 측정 쿼리 갱신
 
 		MakePacket(dfMONITOR_DATA_TYPE_SERVER_CPU_TOTAL);
@@ -192,7 +195,7 @@ bool CGameServer::MakePacket(BYTE DataType)
 	struct tm *pTime = new struct tm;
 	time_t Now;
 	localtime_s(pTime, &Now);
-	_TimeStamp = Now;
+	_TimeStamp = time(NULL);
 	WORD Type = en_PACKET_SS_MONITOR_DATA_UPDATE;
 	switch (DataType)
 	{

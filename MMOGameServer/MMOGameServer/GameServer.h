@@ -77,6 +77,7 @@ private:
 	CCpuUsage _Cpu;
 	CEthernet _Ethernet;
 	HANDLE	_hMonitorThread;
+	HANDLE	_hLanMonitorThread;
 
 	PDH_HQUERY		_CpuQuery;
 	PDH_HCOUNTER	_MemoryAvailableMBytes;

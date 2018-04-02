@@ -50,7 +50,7 @@ bool CDBConnector::Connect()
 		(char*)_szDBPassword, (char*)_szDBName, 3306, (char*)NULL, 0);
 	if (NULL == _pMySQL)
 	{
-		wprintf(L"DB Connect Error : %s\n", mysql_error(&_MySQL));
+		printf("DB Connect Error : %s\n", mysql_error(&_MySQL));
 		return false;
 	}
 	mysql_set_character_set(_pMySQL, "utf8");
@@ -170,7 +170,7 @@ void CDBConnector::FreeResult()
 
 int CDBConnector::FetchNum()
 {
-	int totalrows = mysql_num_rows(_pSqlResult);
+	int totalrows = (int)mysql_num_rows(_pSqlResult);
 	return mysql_num_fields(_pSqlResult);
 }
 
@@ -185,7 +185,7 @@ void CDBConnector::SaveLastError()
 
 void CDBConnector::UTF8toUTF16(const char *szText, WCHAR *szBuf, int iBufLen)
 {
-	int iRe = MultiByteToWideChar(CP_UTF8, 0, szText, strlen(szText), szBuf, iBufLen);
+	int iRe = MultiByteToWideChar(CP_UTF8, 0, szText, (int)strlen(szText), szBuf, iBufLen);
 	if (iRe < iBufLen)
 		szBuf[iRe] = L'\0';
 	return;

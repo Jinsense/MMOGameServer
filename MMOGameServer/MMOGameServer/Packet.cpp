@@ -168,8 +168,10 @@ void CPacket::SetHeader_CustomShort(unsigned short shHeader)
 {
 	if (true == InterlockedCompareExchange(&_lHeaderSetFlag, true, false))
 		return;
-	memcpy_s(&_chBuffer, static_cast<int>(en_PACKETDEFINE::SHORT_HEADER_SIZE),
+	memcpy_s(&_chBuffer[3], static_cast<int>(en_PACKETDEFINE::SHORT_HEADER_SIZE),
 		&shHeader, static_cast<int>(en_PACKETDEFINE::SHORT_HEADER_SIZE));
+
+	_pReadPos += 3;
 }
 
 void CPacket::EnCode()

@@ -14,7 +14,7 @@
 #include "Dump.h"
 
 #define		WORKER_THREAD_MAX		10
-#define		WSABUF_MAX				200
+#define		WSABUF_MAX				100
 #define		AUTH_MAX				5
 #define		GAME_MAX				3
 #define		RELEASE_MAX				100
@@ -163,7 +163,8 @@ private:
 
 	HANDLE _hAcceptThread;
 
-	CLockFreeQueue<CLIENT_CONNECT_INFO *>	_AccpetSocketQueue;	//	신규접속 Socket 큐
+	CRingBuffer		_AccpetSocketQueue;
+//	CLockFreeQueue<CLIENT_CONNECT_INFO *>	_AccpetSocketQueue;	//	신규접속 Socket 큐
 	CMemoryPool<CLIENT_CONNECT_INFO>		*_pMemoryPool_ConnectInfo;
 
 	//	Auth 부
@@ -195,6 +196,8 @@ public:
 	long		_Monitor_Counter_Recv;			//	1초 당 Recv 루프 횟수
 	long		_Monitor_Counter_Send;			//	1초 당 Send 루프 횟수
 	long		_Monitor_Counter_PacketSend;	//	1초 당 SendThread 루프 횟수
+	long		_Monitor_Counter_RecvAvr;
+	long		_Monitor_Counter_SendAvr;
 
 	CSystemLog	*_pLog;
 

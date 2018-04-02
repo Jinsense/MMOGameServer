@@ -15,7 +15,7 @@ using namespace std;
 
 #include "MMOGameServer.h"
 
-CMMOServer::CMMOServer(int iMaxSession) : _iMaxSession(iMaxSession)
+CMMOServer::CMMOServer(int iMaxSession) : _iMaxSession(iMaxSession), _AccpetSocketQueue(50000)
 {
 	timeBeginPeriod(1);
 
@@ -51,6 +51,10 @@ CMMOServer::CMMOServer(int iMaxSession) : _iMaxSession(iMaxSession)
 	_Monitor_Counter_Recv = NULL;
 	_Monitor_Counter_Send = NULL;
 	_Monitor_Counter_PacketSend = NULL;
+	_Monitor_Counter_RecvAvr = NULL;
+	_Monitor_Counter_SendAvr = NULL;
+
+	_AccpetSocketQueue.Clear();
 }
 
 CMMOServer::~CMMOServer()
@@ -279,7 +283,8 @@ void CMMOServer::SendPost(int Index)
 	if (true == InterlockedCompareExchange(&_pSessionArray[Index]->_SendFlag, true, false))
 		return;
 
-	if (0 == _pSessionArray[Index]->_SendQ.GetUseCount())
+	if (0 == _pSessionArray[Index]->_SendQ.GetUseSize())
+//	if (0 == _pSessionArray[Index]->_SendQ.GetUseCount())
 	{
 		InterlockedExchange(&_pSessionArray[Index]->_SendFlag, false);
 		return;
@@ -291,21 +296,25 @@ void CMMOServer::SendPost(int Index)
 		return;
 	}
 
-	_Monitor_Counter_Send++;
+//_Monitor_Counter_Send++;
 
 	WSABUF Buf[WSABUF_MAX];
 	CPacket *pPacket;
 	int BufNum;
-	int UseSize = (_pSessionArray[Index]->_SendQ.GetUseCount());
+	int UseSize = (_pSessionArray[Index]->_SendQ.GetUseSize() / sizeof(CPacket*));
+//	int UseSize = (_pSessionArray[Index]->_SendQ.GetUseCount());
 	if (UseSize > WSABUF_MAX)
 	{
 		BufNum = WSABUF_MAX;
 		_pSessionArray[Index]->_iSendPacketCnt = WSABUF_MAX;
 
+		_Monitor_Counter_Send+= WSABUF_MAX;
 		for (int j = 0; j < WSABUF_MAX; j++)
 		{
-			_pSessionArray[Index]->_SendQ.Dequeue(pPacket);
-			_pSessionArray[Index]->_CompleteSendPacket.Enqueue(pPacket);
+			_pSessionArray[Index]->_SendQ.Dequeue((char*)&pPacket, sizeof(CPacket*));
+//			_pSessionArray[Index]->_SendQ.Dequeue(pPacket);
+			_pSessionArray[Index]->_CompleteSendPacket.Enqueue((char*)&pPacket, sizeof(CPacket*));
+	//		_pSessionArray[Index]->_CompleteSendPacket.Enqueue(pPacket);
 			Buf[j].buf = pPacket->GetBufferPtr();
 			Buf[j].len = pPacket->GetPacketSize();
 		}
@@ -315,10 +324,13 @@ void CMMOServer::SendPost(int Index)
 		BufNum = UseSize;
 		_pSessionArray[Index]->_iSendPacketCnt = UseSize;
 
+		_Monitor_Counter_Send += UseSize;
 		for (int j = 0; j < UseSize; j++)
 		{
-			_pSessionArray[Index]->_SendQ.Dequeue(pPacket);
-			_pSessionArray[Index]->_CompleteSendPacket.Enqueue(pPacket);
+			_pSessionArray[Index]->_SendQ.Dequeue((char*)&pPacket, sizeof(CPacket*));
+//			_pSessionArray[Index]->_SendQ.Dequeue(pPacket);
+			_pSessionArray[Index]->_CompleteSendPacket.Enqueue((char*)&pPacket, sizeof(CPacket*));
+//			_pSessionArray[Index]->_CompleteSendPacket.Enqueue(pPacket);
 			Buf[j].buf = pPacket->GetBufferPtr();
 			Buf[j].len = pPacket->GetPacketSize();
 		}
@@ -393,6 +405,7 @@ void CMMOServer::CompleteRecv(int Index, DWORD Trans)
 		pPacket->m_header.RandKey = _Header.RandKey;
 		pPacket->m_header.CheckSum = _Header.CheckSum;
 		pPacket->PopData(sizeof(CPacket::st_PACKET_HEADER));
+
 		_pSessionArray[Index]->_CompleteRecvPacket.Enqueue(pPacket);
 
 		_Monitor_Counter_Recv++;
@@ -404,14 +417,15 @@ void CMMOServer::CompleteRecv(int Index, DWORD Trans)
 void CMMOServer::CompleteSend(int Index, DWORD Trans)
 {
 	CPacket *pPacket;
-	for (int i = 0; i < _pSessionArray[Index]->_iSendPacketCnt; i++)
+	int Num = _pSessionArray[Index]->_iSendPacketCnt;
+
+	for (int i = 0; i < Num; i++)
 	{
-		_pSessionArray[Index]->_CompleteSendPacket.Dequeue(pPacket);
-		if (nullptr == pPacket)
-			break;
+		_pSessionArray[Index]->_CompleteSendPacket.Dequeue((char*)&pPacket, sizeof(CPacket*));
+//		_pSessionArray[Index]->_CompleteSendPacket.Dequeue(pPacket);
 		pPacket->Free();
 	}
-	_pSessionArray[Index]->_iSendPacketCnt = 0;
+	_pSessionArray[Index]->_iSendPacketCnt -= Num;
 	InterlockedExchange(&_pSessionArray[Index]->_SendFlag, false);
 
 	return;
@@ -423,29 +437,31 @@ void CMMOServer::ProcAuth_Accept()
 
 	// 신규 접속자 처리
 	CLIENT_CONNECT_INFO *pInfo;
-	_AccpetSocketQueue.Dequeue(pInfo);
+	_AccpetSocketQueue.Dequeue((char*)&pInfo, sizeof(CLIENT_CONNECT_INFO*));
+//	_AccpetSocketQueue.Dequeue(pInfo);
 
 	int Index = NULL;
 	_BlankSessionStack.Pop(Index);
 
-	_pSessionArray[Index]->_iArrayIndex = Index;
-	_pSessionArray[Index]->_Mode = CNetSession::MODE_AUTH;
-	_pSessionArray[Index]->_AuthToGameFlag = false;
-	_pSessionArray[Index]->_iSendPacketCnt = NULL;
-	_pSessionArray[Index]->_iSendPacketSize = NULL;
-	_pSessionArray[Index]->_LogOutFlag = false;
-	_pSessionArray[Index]->_RecvQ.Clear();
-	InterlockedIncrement(&_pSessionArray[Index]->_IOCount);
+	CNetSession* pSession = _pSessionArray[Index];
+	pSession->_iArrayIndex = Index;
+	pSession->_Mode = CNetSession::MODE_AUTH;
+	pSession->_AuthToGameFlag = false;
+	pSession->_iSendPacketCnt = NULL;
+	pSession->_iSendPacketSize = NULL;
+	pSession->_LogOutFlag = false;
+	pSession->_RecvQ.Clear();
+	InterlockedIncrement(&pSession->_IOCount);
 
-	_pSessionArray[Index]->_ClientInfo.ClientID = pInfo->ClientID;
-	strcpy_s(_pSessionArray[Index]->_ClientInfo.IP, sizeof(_pSessionArray[Index]->_ClientInfo.IP), pInfo->IP);
-	_pSessionArray[Index]->_ClientInfo.Port = pInfo->Port;
-	_pSessionArray[Index]->_ClientInfo.Sock = pInfo->Sock;
+	pSession->_ClientInfo.ClientID = pInfo->ClientID;
+	strcpy_s(pSession->_ClientInfo.IP, sizeof(pSession->_ClientInfo.IP), pInfo->IP);
+	pSession->_ClientInfo.Port = pInfo->Port;
+	pSession->_ClientInfo.Sock = pInfo->Sock;
 
 	_pMemoryPool_ConnectInfo->Free(pInfo);
 
-	CreateIOCP_Socket(_pSessionArray[Index]->_ClientInfo.Sock, Index);
-	_pSessionArray[Index]->OnAuth_ClientJoin();
+	CreateIOCP_Socket(pSession->_ClientInfo.Sock, Index);
+	pSession->OnAuth_ClientJoin();
 	StartRecvPost(Index);
 	return;
 }
@@ -455,9 +471,10 @@ void CMMOServer::ProcAuth_LogoutInAuth()
 	//	LogOutFlag가 true인 세션을 LOGOUT_IN_AUTH 모드로 변경
 	for (int i = 0; i < _iMaxSession; i++)
 	{
-		if (CNetSession::MODE_AUTH == _pSessionArray[i]->_Mode && true == _pSessionArray[i]->_LogOutFlag)
+		CNetSession *pSession = _pSessionArray[i];
+		if (CNetSession::MODE_AUTH == pSession->_Mode && true == pSession->_LogOutFlag)
 		{
-			_pSessionArray[i]->_Mode = CNetSession::MODE_LOGOUT_IN_AUTH;
+			pSession->_Mode = CNetSession::MODE_LOGOUT_IN_AUTH;
 			_Monitor_SessionAuthMode--;
 		}
 	}
@@ -470,10 +487,11 @@ void CMMOServer::ProcAuth_Logout()
 	//	WAIT_LOGOUT으로 모드 변경
 	for (int i = 0; i < _iMaxSession; i++)
 	{
-		if (CNetSession::MODE_LOGOUT_IN_AUTH == _pSessionArray[i]->_Mode && false == _pSessionArray[i]->_SendFlag)
+		CNetSession *pSession = _pSessionArray[i];
+		if (CNetSession::MODE_LOGOUT_IN_AUTH == pSession->_Mode && false == pSession->_SendFlag)
 		{
-			_pSessionArray[i]->_Mode = CNetSession::MODE_WAIT_LOGOUT;
-			_pSessionArray[i]->OnAuth_ClientLeave();
+			pSession->_Mode = CNetSession::MODE_WAIT_LOGOUT;
+			pSession->OnAuth_ClientLeave();
 		}
 	}
 	return;
@@ -485,10 +503,11 @@ void CMMOServer::ProcAuth_AuthToGame()
 	//	Auth 모드인 세션을 AUTH_TO_GAME 모드로 변경
 	for (int i = 0; i < _iMaxSession; i++)
 	{
-		if (CNetSession::MODE_AUTH == _pSessionArray[i]->_Mode && true == _pSessionArray[i]->_AuthToGameFlag)
+		CNetSession *pSession = _pSessionArray[i];
+		if (CNetSession::MODE_AUTH == pSession->_Mode && pSession->_AuthToGameFlag)
 		{
-			_pSessionArray[i]->_Mode = CNetSession::MODE_AUTH_TO_GAME;
-			_pSessionArray[i]->OnAuth_ClientLeave();
+			pSession->_Mode = CNetSession::MODE_AUTH_TO_GAME;
+			pSession->OnAuth_ClientLeave();
 			_Monitor_SessionAuthMode--;
 		}
 	}
@@ -503,9 +522,10 @@ void CMMOServer::ProcGame_AuthToGame()
 	//	현재는 테스트를 위해 무제한으로 변경
 	for (int i = 0; i < _iMaxSession; i++)
 	{
-		if (CNetSession::MODE_AUTH_TO_GAME == _pSessionArray[i]->_Mode)
+		CNetSession *pSession = _pSessionArray[i];
+		if (CNetSession::MODE_AUTH_TO_GAME == pSession->_Mode)
 		{
-			_pSessionArray[i]->_Mode = CNetSession::MODE_GAME;
+			pSession->_Mode = CNetSession::MODE_GAME;
 			_Monitor_SessionGameMode++;
 		}
 	}
@@ -519,9 +539,10 @@ void CMMOServer::ProcGame_LogoutInGame()
 	//	true인 세션을 LOGOUT_IN_GAME 모드로 변경
 	for (int i = 0; i < _iMaxSession; i++)
 	{
-		if (CNetSession::MODE_GAME == _pSessionArray[i]->_Mode && true == _pSessionArray[i]->_LogOutFlag)
+		CNetSession *pSession = _pSessionArray[i];
+		if (CNetSession::MODE_GAME == pSession->_Mode && pSession->_LogOutFlag)
 		{
-			_pSessionArray[i]->_Mode = CNetSession::MODE_LOGOUT_IN_GAME;
+			pSession->_Mode = CNetSession::MODE_LOGOUT_IN_GAME;
 			_Monitor_SessionGameMode--;
 		}
 	}
@@ -537,10 +558,11 @@ void CMMOServer::ProcGame_Logout()
 	//	virtual OnGame_ClientLeave 호출
 	for (int i = 0; i < _iMaxSession; i++)
 	{
-		if (CNetSession::MODE_LOGOUT_IN_GAME == _pSessionArray[i]->_Mode && false == _pSessionArray[i]->_SendFlag)
+		CNetSession *pSession = _pSessionArray[i];
+		if (CNetSession::MODE_LOGOUT_IN_GAME == pSession->_Mode && false == _pSessionArray[i]->_SendFlag)
 		{
-			_pSessionArray[i]->_Mode = CNetSession::MODE_WAIT_LOGOUT;
-			_pSessionArray[i]->OnGame_ClientLeave();
+			pSession->_Mode = CNetSession::MODE_WAIT_LOGOUT;
+			pSession->OnGame_ClientLeave();
 		}
 	}
 	return;
@@ -556,43 +578,48 @@ void CMMOServer::ProcGame_Release()
 	//	해당 세션 배열 Index를 BlankSessionStack에 넣음
 	for (int i = 0; i < _iMaxSession; i++)
 	{
-		if (CNetSession::MODE_WAIT_LOGOUT == _pSessionArray[i]->_Mode)
+		CNetSession *pSession = _pSessionArray[i];
+		if (CNetSession::MODE_WAIT_LOGOUT == pSession->_Mode)
 		{
-			_pSessionArray[i]->OnGame_ClientRelease();
-			_pSessionArray[i]->_Mode = CNetSession::MODE_NONE;
-			_pSessionArray[i]->_iArrayIndex = NULL;
-			_pSessionArray[i]->_iSendPacketCnt = NULL;
-			_pSessionArray[i]->_iSendPacketSize = NULL;
-			_pSessionArray[i]->_SendFlag = false;
-			_pSessionArray[i]->_LogOutFlag = false;
-			_pSessionArray[i]->_AuthToGameFlag = false;
+			pSession->OnGame_ClientRelease();
+			pSession->_Mode = CNetSession::MODE_NONE;
+			pSession->_iArrayIndex = NULL;
+			pSession->_iSendPacketCnt = NULL;
+			pSession->_iSendPacketSize = NULL;
+			pSession->_SendFlag = false;
+			pSession->_LogOutFlag = false;
+			pSession->_AuthToGameFlag = false;
 			
-			while (0 != _pSessionArray[i]->_SendQ.GetUseCount())
+			while (0 != pSession->_SendQ.GetUseSize())
+//			while (0 != _pSessionArray[i]->_SendQ.GetUseCount())
 			{
 				//	애초에 큐에 패킷이 남아있으면 안됨..
 				CPacket *pPacket;
-				_pSessionArray[i]->_SendQ.Dequeue(pPacket);
+				pSession->_SendQ.Dequeue((char*)&pPacket, sizeof(CPacket*));
+//				_pSessionArray[i]->_SendQ.Dequeue(pPacket);
 				pPacket->Free();
 			}
-			while (0 != _pSessionArray[i]->_CompleteRecvPacket.GetUseCount())
+			while (0 != pSession->_CompleteRecvPacket.GetUseCount())
 			{
 				//	애초에 큐에 패킷이 남아있으면 안됨..
 				CPacket *pPacket;
-				_pSessionArray[i]->_CompleteRecvPacket.Dequeue(pPacket);
+				pSession->_CompleteRecvPacket.Dequeue(pPacket);
 				pPacket->Free();
 			}
-			while (0 != _pSessionArray[i]->_CompleteSendPacket.GetUseCount())
+			while (0 != pSession->_CompleteSendPacket.GetUseSize())
+//			while (0 != _pSessionArray[i]->_CompleteSendPacket.GetUseCount())
 			{
 				//	애초에 큐에 패킷이 남아있으면 안됨..
 				CPacket *pPacket;
-				_pSessionArray[i]->_CompleteSendPacket.Dequeue(pPacket);
+				pSession->_CompleteSendPacket.Dequeue((char*)&pPacket, sizeof(CPacket*));
+//				_pSessionArray[i]->_CompleteSendPacket.Dequeue(pPacket);
 				pPacket->Free();
 			}
 
-			_pSessionArray[i]->_ClientInfo.ClientID = NULL;
-			_pSessionArray[i]->_ClientInfo.Port = NULL;
+			pSession->_ClientInfo.ClientID = NULL;
+			pSession->_ClientInfo.Port = NULL;
 			closesocket(_pSessionArray[i]->_ClientInfo.Sock);
-			_pSessionArray[i]->_ClientInfo.Sock = INVALID_SOCKET;
+			pSession->_ClientInfo.Sock = INVALID_SOCKET;
 
 			InterlockedDecrement(&_Monitor_SessionAllMode);
 
@@ -621,7 +648,8 @@ bool CMMOServer::AcceptThread_update()
 		pInfo->Sock = Sock;
 		pInfo->ClientID = _iClientIDCnt++;
 
-		_AccpetSocketQueue.Enqueue(pInfo);
+//		_AccpetSocketQueue.Enqueue(pInfo);
+		_AccpetSocketQueue.Enqueue((char*)&pInfo, sizeof(CLIENT_CONNECT_INFO*));
 		InterlockedIncrement(&_Monitor_SessionAllMode);
 	}
 	return true;
@@ -632,11 +660,12 @@ bool CMMOServer::AuthThread_update()
 	int Count;
 	while (!_bShutdown)
 	{
-		Sleep(5);
+		Sleep(1000);
 		Count = 0;
 		_Monitor_Counter_AuthUpdate++;
 
-		while(0 != _AccpetSocketQueue.GetUseCount())
+		while (_AccpetSocketQueue.GetUseSize())
+//		while(_AccpetSocketQueue.GetUseCount())
 //		while (Count < AUTH_MAX)
 		{
 //			if (0 != _AccpetSocketQueue.GetUseCount())
@@ -648,16 +677,17 @@ bool CMMOServer::AuthThread_update()
 
 		for (int i = 0; i < _iMaxSession; i++)
 		{
-			if (CNetSession::MODE_AUTH == _pSessionArray[i]->_Mode && 0 != _pSessionArray[i]->_CompleteRecvPacket.GetUseCount())
+			CNetSession *pSession = _pSessionArray[i];
+			if (CNetSession::MODE_AUTH == pSession->_Mode && 0 != pSession->_CompleteRecvPacket.GetUseCount())
 			{
 				Count = 0;
 				while (Count < AUTH_MAX)
 				{
-					if (0 == _pSessionArray[i]->_CompleteRecvPacket.GetUseCount())
+					if (0 == pSession->_CompleteRecvPacket.GetUseCount())
 						break;
 					CPacket *pPacket;
-					_pSessionArray[i]->_CompleteRecvPacket.Dequeue(pPacket);
-					_pSessionArray[i]->OnAuth_Packet(pPacket);
+					pSession->_CompleteRecvPacket.Dequeue(pPacket);
+					pSession->OnAuth_Packet(pPacket);
 					pPacket->Free();
 					Count++;
 				}
@@ -676,7 +706,7 @@ bool CMMOServer::GameUpdateThread_update()
 	int Count;
 	while (!_bShutdown)
 	{
-		Sleep(1);
+		Sleep(0);
 		Count = 0;
 		InterlockedIncrement(&_Monitor_Counter_GameUpdate);
 //		_Monitor_Counter_GameUpdate++;
