@@ -8,9 +8,6 @@
 #include <chrono>
 #include <iostream>
 
-
-
-
 using namespace std;
 
 #include "MMOGameServer.h"
@@ -103,7 +100,7 @@ bool CMMOServer::Start(WCHAR *szListenIP, int iPort, int iWorkerThread, bool bEn
 	tcpkl.keepaliveinterval = 1000;	// keepalive 신호를 보내고 응답이 없으면 1초마다 재 전송하겠다. (ms tcp 는 10회 재시도 한다)
 	WSAIoctl(_ListenSocket, SIO_KEEPALIVE_VALS, &tcpkl, sizeof(tcp_keepalive), 0, 0, &dwResult, NULL, NULL);
 	
-	iRetval == ::bind(_ListenSocket, (sockaddr*)&Server_addr, sizeof(Server_addr));
+	iRetval = ::bind(_ListenSocket, (sockaddr*)&Server_addr, sizeof(Server_addr));
 	if (SOCKET_ERROR == iRetval)
 	{
 		int LastError = WSAGetLastError();
@@ -111,7 +108,7 @@ bool CMMOServer::Start(WCHAR *szListenIP, int iPort, int iWorkerThread, bool bEn
 		return false;
 	}
 
-	iRetval == listen(_ListenSocket, SOMAXCONN);
+	iRetval = listen(_ListenSocket, SOMAXCONN);
 	if (SOCKET_ERROR == iRetval)
 	{
 		int LastError = WSAGetLastError();
@@ -229,7 +226,10 @@ void CMMOServer::StartRecvPost(int Index)
 		if (ERROR_IO_PENDING != LastError)
 		{
 			if (true != SessionAcquireFree(Index))
+			{
+				_pLog->Log(L"Error", LOG_SYSTEM, L"Recv SocketError - Code %d", LastError);
 				shutdown(_pSessionArray[Index]->_ClientInfo.Sock, SD_BOTH);
+			}
 		}
 	}
 	return;
@@ -240,39 +240,43 @@ void CMMOServer::RecvPost(int Index)
 	if (false == SessionAcquireLock(Index))
 		return;
 
+	CNetSession *pSession = _pSessionArray[Index];
 	DWORD Flag = 0;
-	ZeroMemory(&_pSessionArray[Index]->_RecvOver, sizeof(_pSessionArray[Index]->_RecvOver));
+	ZeroMemory(&pSession->_RecvOver, sizeof(pSession->_RecvOver));
 	
 	WSABUF Buf[2];
-	DWORD FreeSize = _pSessionArray[Index]->_RecvQ.GetFreeSize();
-	DWORD NotBrokenPushSize = _pSessionArray[Index]->_RecvQ.GetNotBrokenPushSize();
+	DWORD FreeSize = pSession->_RecvQ.GetFreeSize();
+	DWORD NotBrokenPushSize = pSession->_RecvQ.GetNotBrokenPushSize();
 	if (0 == FreeSize && 0 == NotBrokenPushSize)
 	{
 		if (true == SessionAcquireFree(Index))
 		{
 			_pLog->Log(L"Error", LOG_SYSTEM, L"RecvPost - RecvQ Full [Index : %d]", Index);
-			shutdown(_pSessionArray[Index]->_ClientInfo.Sock, SD_BOTH);
+			shutdown(pSession->_ClientInfo.Sock, SD_BOTH);
 		}
 	}
 
 	int NumOfBuf = (NotBrokenPushSize < FreeSize) ? 2 : 1;
 
-	Buf[0].buf = _pSessionArray[Index]->_RecvQ.GetWriteBufferPtr();
+	Buf[0].buf = pSession->_RecvQ.GetWriteBufferPtr();
 	Buf[0].len = NotBrokenPushSize;
 
 	if (2 == NumOfBuf)
 	{
-		Buf[1].buf = _pSessionArray[Index]->_RecvQ.GetBufferPtr();
+		Buf[1].buf = pSession->_RecvQ.GetBufferPtr();
 		Buf[1].len = FreeSize - NotBrokenPushSize;
 	}
 
-	if (SOCKET_ERROR == WSARecv(_pSessionArray[Index]->_ClientInfo.Sock, Buf, NumOfBuf, NULL, &Flag, &_pSessionArray[Index]->_RecvOver, NULL))
+	if (SOCKET_ERROR == WSARecv(pSession->_ClientInfo.Sock, Buf, NumOfBuf, NULL, &Flag, &pSession->_RecvOver, NULL))
 	{
 		int LastError = WSAGetLastError();
 		if (ERROR_IO_PENDING != LastError)
 		{
-			if(true != SessionAcquireFree(Index))
-				shutdown(_pSessionArray[Index]->_ClientInfo.Sock, SD_BOTH);
+			if (true != SessionAcquireFree(Index))
+			{
+				_pLog->Log(L"Error", LOG_SYSTEM, L"Recv SocketError - Code %d", LastError);
+				shutdown(pSession->_ClientInfo.Sock, SD_BOTH);
+			}
 		}
 	}
 	return;
@@ -280,19 +284,20 @@ void CMMOServer::RecvPost(int Index)
 
 void CMMOServer::SendPost(int Index)
 {
-	if (true == InterlockedCompareExchange(&_pSessionArray[Index]->_SendFlag, true, false))
+	CNetSession *pSession = _pSessionArray[Index];
+	if (true == InterlockedCompareExchange(&pSession->_SendFlag, true, false))
 		return;
 
-	if (0 == _pSessionArray[Index]->_SendQ.GetUseSize())
+	if (0 == pSession->_SendQ.GetUseSize())
 //	if (0 == _pSessionArray[Index]->_SendQ.GetUseCount())
 	{
-		InterlockedExchange(&_pSessionArray[Index]->_SendFlag, false);
+		InterlockedExchange(&pSession->_SendFlag, false);
 		return;
 	}
 
-	if (CNetSession::MODE_AUTH != _pSessionArray[Index]->_Mode && CNetSession::MODE_GAME != _pSessionArray[Index]->_Mode)
+	if (CNetSession::MODE_AUTH != pSession->_Mode && CNetSession::MODE_GAME != pSession->_Mode)
 	{
-		InterlockedExchange(&_pSessionArray[Index]->_SendFlag, false);
+		InterlockedExchange(&pSession->_SendFlag, false);
 		return;
 	}
 
@@ -301,20 +306,20 @@ void CMMOServer::SendPost(int Index)
 	WSABUF Buf[WSABUF_MAX];
 	CPacket *pPacket;
 	int BufNum;
-	int UseSize = (_pSessionArray[Index]->_SendQ.GetUseSize() / sizeof(CPacket*));
+	int UseSize = (pSession->_SendQ.GetUseSize() / sizeof(CPacket*));
 //	int UseSize = (_pSessionArray[Index]->_SendQ.GetUseCount());
 	if (UseSize > WSABUF_MAX)
 	{
 		BufNum = WSABUF_MAX;
-		_pSessionArray[Index]->_iSendPacketCnt = WSABUF_MAX;
+		pSession->_iSendPacketCnt = WSABUF_MAX;
 
 		_Monitor_Counter_Send+= WSABUF_MAX;
 		for (int j = 0; j < WSABUF_MAX; j++)
 		{
-			_pSessionArray[Index]->_SendQ.Dequeue((char*)&pPacket, sizeof(CPacket*));
-//			_pSessionArray[Index]->_SendQ.Dequeue(pPacket);
-			_pSessionArray[Index]->_CompleteSendPacket.Enqueue((char*)&pPacket, sizeof(CPacket*));
-	//		_pSessionArray[Index]->_CompleteSendPacket.Enqueue(pPacket);
+			pSession->_SendQ.Dequeue((char*)&pPacket, sizeof(CPacket*));
+//			pSession->_SendQ.Dequeue(pPacket);
+			pSession->_CompleteSendPacket.Enqueue((char*)&pPacket, sizeof(CPacket*));
+	//		pSession->_CompleteSendPacket.Enqueue(pPacket);
 			Buf[j].buf = pPacket->GetBufferPtr();
 			Buf[j].len = pPacket->GetPacketSize();
 		}
@@ -322,37 +327,36 @@ void CMMOServer::SendPost(int Index)
 	else
 	{
 		BufNum = UseSize;
-		_pSessionArray[Index]->_iSendPacketCnt = UseSize;
+		pSession->_iSendPacketCnt = UseSize;
 
 		_Monitor_Counter_Send += UseSize;
 		for (int j = 0; j < UseSize; j++)
 		{
-			_pSessionArray[Index]->_SendQ.Dequeue((char*)&pPacket, sizeof(CPacket*));
-//			_pSessionArray[Index]->_SendQ.Dequeue(pPacket);
-			_pSessionArray[Index]->_CompleteSendPacket.Enqueue((char*)&pPacket, sizeof(CPacket*));
-//			_pSessionArray[Index]->_CompleteSendPacket.Enqueue(pPacket);
+			pSession->_SendQ.Dequeue((char*)&pPacket, sizeof(CPacket*));
+//			pSession->_SendQ.Dequeue(pPacket);
+			pSession->_CompleteSendPacket.Enqueue((char*)&pPacket, sizeof(CPacket*));
+//			pSession->_CompleteSendPacket.Enqueue(pPacket);
 			Buf[j].buf = pPacket->GetBufferPtr();
 			Buf[j].len = pPacket->GetPacketSize();
 		}
 	}
 	if (false == SessionAcquireLock(Index))
 	{
-		InterlockedExchange(&_pSessionArray[Index]->_SendFlag, false);
+		InterlockedExchange(&pSession->_SendFlag, false);
 		return;
 	}
-	ZeroMemory(&_pSessionArray[Index]->_SendOver, sizeof(_pSessionArray[Index]->_SendOver));
-	if (SOCKET_ERROR == WSASend(_pSessionArray[Index]->_ClientInfo.Sock, Buf, BufNum, NULL, 0, &_pSessionArray[Index]->_SendOver, NULL))
+	ZeroMemory(&pSession->_SendOver, sizeof(pSession->_SendOver));
+	if (SOCKET_ERROR == WSASend(pSession->_ClientInfo.Sock, Buf, BufNum, NULL, 0, &pSession->_SendOver, NULL))
 	{
 		int LastError = WSAGetLastError();
 		if (ERROR_IO_PENDING != LastError)
 		{
 			SessionAcquireFree(Index);
-//			if (true != SessionAcquireFree(Index))
-//			{
-				shutdown(_pSessionArray[Index]->_ClientInfo.Sock, SD_BOTH);
-				InterlockedExchange(&_pSessionArray[Index]->_SendFlag, false);
-				return;
-//			}
+			_pLog->Log(L"Error", LOG_SYSTEM, L"Send SocketError - Code %d", LastError);
+			shutdown(pSession->_ClientInfo.Sock, SD_BOTH);
+			InterlockedExchange(&pSession->_SendFlag, false);
+			return;
+
 		}
 	}
 	return;
@@ -360,26 +364,27 @@ void CMMOServer::SendPost(int Index)
 
 void CMMOServer::CompleteRecv(int Index, DWORD Trans)
 {
-	_pSessionArray[Index]->_RecvQ.Enqueue(Trans);
+	CNetSession *pSession = _pSessionArray[Index];
+	pSession->_RecvQ.Enqueue(Trans);
 
-	while (0 < _pSessionArray[Index]->_RecvQ.GetUseSize())
+	while (0 < pSession->_RecvQ.GetUseSize())
 	{
-		if (sizeof(CPacket::st_PACKET_HEADER) > _pSessionArray[Index]->_RecvQ.GetUseSize())
+		if (sizeof(CPacket::st_PACKET_HEADER) > pSession->_RecvQ.GetUseSize())
 		{
 			RecvPost(Index);
 			return;
 		}
 
 		CPacket::st_PACKET_HEADER _Header;
-		_pSessionArray[Index]->_RecvQ.Peek((char*)&_Header, sizeof(CPacket::st_PACKET_HEADER));
+		pSession->_RecvQ.Peek((char*)&_Header, sizeof(CPacket::st_PACKET_HEADER));
 	
 		if (CNetSession::BUF < _Header.shLen)
 		{
-			shutdown(_pSessionArray[Index]->_ClientInfo.Sock, SD_BOTH);
+			shutdown(pSession->_ClientInfo.Sock, SD_BOTH);
 			return;
 		}
 	
-		if (sizeof(CPacket::st_PACKET_HEADER) + _Header.shLen > _pSessionArray[Index]->_RecvQ.GetUseSize())
+		if (sizeof(CPacket::st_PACKET_HEADER) + _Header.shLen > pSession->_RecvQ.GetUseSize())
 		{
 			RecvPost(Index);
 			return;
@@ -387,16 +392,16 @@ void CMMOServer::CompleteRecv(int Index, DWORD Trans)
 
 		if (_byCode != _Header.byCode)
 		{
-			shutdown(_pSessionArray[Index]->_ClientInfo.Sock, SD_BOTH);
+			shutdown(pSession->_ClientInfo.Sock, SD_BOTH);
 			return;
 		}
 
 		CPacket *pPacket = CPacket::Alloc();
-		_pSessionArray[Index]->_RecvQ.Dequeue((char*)pPacket->GetBufferPtr(), _Header.shLen + sizeof(CPacket::st_PACKET_HEADER));
+		pSession->_RecvQ.Dequeue((char*)pPacket->GetBufferPtr(), _Header.shLen + sizeof(CPacket::st_PACKET_HEADER));
 		pPacket->PushData(_Header.shLen + sizeof(CPacket::st_PACKET_HEADER));
 		if (false == pPacket->DeCode(&_Header))
 		{
-			shutdown(_pSessionArray[Index]->_ClientInfo.Sock, SD_BOTH);
+			shutdown(pSession->_ClientInfo.Sock, SD_BOTH);
 			pPacket->Free();
 			return;
 		}
@@ -406,7 +411,7 @@ void CMMOServer::CompleteRecv(int Index, DWORD Trans)
 		pPacket->m_header.CheckSum = _Header.CheckSum;
 		pPacket->PopData(sizeof(CPacket::st_PACKET_HEADER));
 
-		_pSessionArray[Index]->_CompleteRecvPacket.Enqueue(pPacket);
+		pSession->_CompleteRecvPacket.Enqueue(pPacket);
 
 		_Monitor_Counter_Recv++;
 	}
@@ -417,16 +422,17 @@ void CMMOServer::CompleteRecv(int Index, DWORD Trans)
 void CMMOServer::CompleteSend(int Index, DWORD Trans)
 {
 	CPacket *pPacket;
-	int Num = _pSessionArray[Index]->_iSendPacketCnt;
+	CNetSession *pSession = _pSessionArray[Index];
+	int Num = pSession->_iSendPacketCnt;
 
 	for (int i = 0; i < Num; i++)
 	{
-		_pSessionArray[Index]->_CompleteSendPacket.Dequeue((char*)&pPacket, sizeof(CPacket*));
-//		_pSessionArray[Index]->_CompleteSendPacket.Dequeue(pPacket);
+		pSession->_CompleteSendPacket.Dequeue((char*)&pPacket, sizeof(CPacket*));
+//		pSession->_CompleteSendPacket.Dequeue(pPacket);
 		pPacket->Free();
 	}
-	_pSessionArray[Index]->_iSendPacketCnt -= Num;
-	InterlockedExchange(&_pSessionArray[Index]->_SendFlag, false);
+	pSession->_iSendPacketCnt -= Num;
+	InterlockedExchange(&pSession->_SendFlag, false);
 
 	return;
 }
@@ -559,7 +565,7 @@ void CMMOServer::ProcGame_Logout()
 	for (int i = 0; i < _iMaxSession; i++)
 	{
 		CNetSession *pSession = _pSessionArray[i];
-		if (CNetSession::MODE_LOGOUT_IN_GAME == pSession->_Mode && false == _pSessionArray[i]->_SendFlag)
+		if (CNetSession::MODE_LOGOUT_IN_GAME == pSession->_Mode && false == pSession->_SendFlag)
 		{
 			pSession->_Mode = CNetSession::MODE_WAIT_LOGOUT;
 			pSession->OnGame_ClientLeave();
@@ -618,7 +624,7 @@ void CMMOServer::ProcGame_Release()
 
 			pSession->_ClientInfo.ClientID = NULL;
 			pSession->_ClientInfo.Port = NULL;
-			closesocket(_pSessionArray[i]->_ClientInfo.Sock);
+			closesocket(pSession->_ClientInfo.Sock);
 			pSession->_ClientInfo.Sock = INVALID_SOCKET;
 
 			InterlockedDecrement(&_Monitor_SessionAllMode);
@@ -708,8 +714,7 @@ bool CMMOServer::GameUpdateThread_update()
 	{
 		Sleep(0);
 		Count = 0;
-		InterlockedIncrement(&_Monitor_Counter_GameUpdate);
-//		_Monitor_Counter_GameUpdate++;
+		_Monitor_Counter_GameUpdate++;
 		ProcGame_AuthToGame();
 
 		//	GAME 모드 세션들 패킷 처리
@@ -719,16 +724,17 @@ bool CMMOServer::GameUpdateThread_update()
 		//	기본 패킷 1개 처리, 상황에 따라 N개 처리
 		for (int i = 0; i < _iMaxSession; i++)
 		{
-			if (CNetSession::MODE_GAME == _pSessionArray[i]->_Mode && 0 != _pSessionArray[i]->_CompleteRecvPacket.GetUseCount())
+			CNetSession *pSession = _pSessionArray[i];
+			if (CNetSession::MODE_GAME == pSession->_Mode && 0 != pSession->_CompleteRecvPacket.GetUseCount())
 			{
 				Count = 0;
 				while (Count < GAME_MAX)
 				{
-					if (0 == _pSessionArray[i]->_CompleteRecvPacket.GetUseCount())
+					if (0 == pSession->_CompleteRecvPacket.GetUseCount())
 						break;
 					CPacket *pPacket;
-					_pSessionArray[i]->_CompleteRecvPacket.Dequeue(pPacket);
-					_pSessionArray[i]->OnGame_Packet(pPacket);
+					pSession->_CompleteRecvPacket.Dequeue(pPacket);
+					pSession->OnGame_Packet(pPacket);
 					pPacket->Free();
 //					SessionAcquireLock(i);
 					Count++;
@@ -754,7 +760,7 @@ bool CMMOServer::IOCPWorkerThread_update()
 		DWORD Trans = 0;
 		
 		Retval = GetQueuedCompletionStatus(_hIOCP, &Trans, (PULONG_PTR)&Index, (LPWSAOVERLAPPED*)&pOver, INFINITE);
-
+		CNetSession *pSession = _pSessionArray[Index];
 		if (nullptr == pOver)
 		{
 			if (_iMaxSession < Index && 0 == Trans)
@@ -764,13 +770,13 @@ bool CMMOServer::IOCPWorkerThread_update()
 		}
 		else if (0 == Trans)
 		{
-			shutdown(_pSessionArray[Index]->_ClientInfo.Sock, SD_BOTH);
+			shutdown(pSession->_ClientInfo.Sock, SD_BOTH);
 		}
-		else if (pOver == &_pSessionArray[Index]->_RecvOver)
+		else if (pOver == &pSession->_RecvOver)
 		{
 			CompleteRecv(Index, Trans);
 		}
-		else if (pOver == &_pSessionArray[Index]->_SendOver)
+		else if (pOver == &pSession->_SendOver)
 		{
 			CompleteSend(Index, Trans);
 		}
@@ -787,9 +793,10 @@ bool CMMOServer::SendThread_update()
 		Sleep(0);
 		for (int i = 0; i < _iMaxSession; i++)
 		{
-			if (CNetSession::MODE_NONE == _pSessionArray[i]->_Mode || true == _pSessionArray[i]->_SendFlag || true == _pSessionArray[i]->_LogOutFlag ||
-				CNetSession::MODE_LOGOUT_IN_AUTH == _pSessionArray[i]->_Mode || CNetSession::MODE_LOGOUT_IN_GAME == _pSessionArray[i]->_Mode ||
-				CNetSession::MODE_WAIT_LOGOUT == _pSessionArray[i]->_Mode)
+			CNetSession *pSession = _pSessionArray[i];
+			if (CNetSession::MODE_NONE == pSession->_Mode || pSession->_SendFlag || pSession->_LogOutFlag ||
+				CNetSession::MODE_LOGOUT_IN_AUTH == pSession->_Mode || CNetSession::MODE_LOGOUT_IN_GAME == pSession->_Mode ||
+				CNetSession::MODE_WAIT_LOGOUT == pSession->_Mode)
 				continue;
 
 //			if (false == SessionAcquireLock(i))

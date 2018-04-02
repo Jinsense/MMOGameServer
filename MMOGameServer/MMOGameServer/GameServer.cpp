@@ -101,7 +101,7 @@ bool CGameServer::MonitorThread_update()
 	int hour = pTime->tm_hour;
 	int min = pTime->tm_min;
 	int sec = pTime->tm_sec;
-
+	int Count = 0;
 	while (!_bShutdown)
 	{
 		Sleep(1000);
@@ -142,8 +142,18 @@ bool CGameServer::MonitorThread_update()
 			wprintf(L"	Ethernet Recv MBytes	:	%.2f\n", _Ethernet._pdh_value_Network_RecvBytes / (1024 * 1024));
 			wprintf(L"	Ethernet Send MBytes	:	%.2f\n", _Ethernet._pdh_value_Network_SendBytes / (1024 * 1024));
 		}
-		_Monitor_Counter_RecvAvr = (_Monitor_Counter_RecvAvr + _Monitor_Counter_Recv) / 2;
-		_Monitor_Counter_SendAvr = (_Monitor_Counter_SendAvr + _Monitor_Counter_Send) / 2;
+		_Monitor_RecvAvr[Count] = _Monitor_Counter_Recv;
+		_Monitor_SendAvr[Count++] = _Monitor_Counter_Send;
+		if (100 == Count)
+			Count = 0;
+		for (int i = 0; i < 100; i++)
+		{
+			_Monitor_Counter_RecvAvr += _Monitor_RecvAvr[i];
+			_Monitor_Counter_SendAvr += _Monitor_SendAvr[i];
+		}
+		_Monitor_Counter_RecvAvr = _Monitor_Counter_RecvAvr / 100;
+		_Monitor_Counter_SendAvr = _Monitor_Counter_SendAvr / 100;
+
 		_Monitor_Counter_Recv = 0;
 		_Monitor_Counter_Send = 0;
 		_Monitor_AcceptSocket = 0;

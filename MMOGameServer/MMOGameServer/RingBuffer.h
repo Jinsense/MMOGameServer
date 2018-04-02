@@ -30,7 +30,7 @@ private:
 	int		m_iFront;
 	int		m_iRear;
 
-	SRWLOCK	m_srw;
+//	SRWLOCK	m_srw;
 };
 
 #endif

@@ -199,6 +199,9 @@ public:
 	long		_Monitor_Counter_RecvAvr;
 	long		_Monitor_Counter_SendAvr;
 
+	long		_Monitor_RecvAvr[100] = { 0, };
+	long		_Monitor_SendAvr[100] = { 0, };
+
 	CSystemLog	*_pLog;
 
 	

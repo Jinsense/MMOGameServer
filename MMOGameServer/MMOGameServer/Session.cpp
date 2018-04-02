@@ -26,8 +26,6 @@ void CNetSession::SendPacket(CPacket *pPacket)
 	pPacket->AddRef();
 	pPacket->EnCode();
 	_SendQ.Enqueue((char*)&pPacket, sizeof(CPacket*));
-	if (nullptr == pPacket)
-		g_CrashDump->Crash();
 //	_SendQ.Enqueue(pPacket);
 	return;
 }

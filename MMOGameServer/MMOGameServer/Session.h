@@ -30,7 +30,7 @@ class CNetSession
 public:
 	enum en_SESSION_BUF
 	{
-		BUF = 20000,
+		BUF = 10000,
 	};
 
 	enum en_SESSION_MODE
