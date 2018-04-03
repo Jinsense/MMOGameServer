@@ -196,11 +196,20 @@ public:
 	long		_Monitor_Counter_Recv;			//	1초 당 Recv 루프 횟수
 	long		_Monitor_Counter_Send;			//	1초 당 Send 루프 횟수
 	long		_Monitor_Counter_PacketSend;	//	1초 당 SendThread 루프 횟수
+
 	long		_Monitor_Counter_RecvAvr;
 	long		_Monitor_Counter_SendAvr;
+	long		_Monitor_Counter_AcceptThreadAvr;
+	long		_Monitor_Counter_SendThreadAvr;
+	long		_Monitor_Counter_AuthThreadAvr;
+	long		_Monitor_Counter_GameThreadAvr;
 
 	long		_Monitor_RecvAvr[100] = { 0, };
 	long		_Monitor_SendAvr[100] = { 0, };
+	long		_Monitor_AcceptThreadAvr[100] = { 0, };
+	long		_Monitor_SendThreadAvr[100] = { 0, };
+	long		_Monitor_AuthThreadAvr[100] = { 0, };
+	long		_Monitor_GameThreadAvr[100] = { 0, };
 
 	CSystemLog	*_pLog;
 

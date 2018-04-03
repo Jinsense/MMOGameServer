@@ -129,10 +129,10 @@ bool CGameServer::MonitorThread_update()
 
 			wprintf(L"	AcceptTotal		:	%I64d\n\n", _Monitor_AcceptTotal);
 
-			wprintf(L"	Accept Thread FPS	:	%d\n", _Monitor_AcceptSocket);
-			wprintf(L"	Send   Thread FPS	:	%d\n", _Monitor_Counter_PacketSend);
-			wprintf(L"	Auth   Thread FPS	:	%d\n", _Monitor_Counter_AuthUpdate);
-			wprintf(L"	Game   Thread FPS	:	%d\n\n", _Monitor_Counter_GameUpdate);
+			wprintf(L"	Accept Thread FPS	:	%d		Accept Avr : %d\n", _Monitor_AcceptSocket, _Monitor_Counter_AcceptThreadAvr);
+			wprintf(L"	Send   Thread FPS	:	%d		Send   Avr : %d\n", _Monitor_Counter_PacketSend, _Monitor_Counter_SendThreadAvr);
+			wprintf(L"	Auth   Thread FPS	:	%d		Auth   Avr : %d\n", _Monitor_Counter_AuthUpdate, _Monitor_Counter_AuthThreadAvr);
+			wprintf(L"	Game   Thread FPS	:	%d		Game   Avr : %d\n\n", _Monitor_Counter_GameUpdate, _Monitor_Counter_GameThreadAvr);
 
 			wprintf(L"	MemoryPool Alloc	:	%I64d\n", CPacket::GetAllocPool());
 			wprintf(L"	Alloc / Free		:	%d\n\n", CPacket::_UseCount);
@@ -150,9 +150,17 @@ bool CGameServer::MonitorThread_update()
 		{
 			_Monitor_Counter_RecvAvr += _Monitor_RecvAvr[i];
 			_Monitor_Counter_SendAvr += _Monitor_SendAvr[i];
+			_Monitor_Counter_AcceptThreadAvr +=	_Monitor_AcceptThreadAvr[i];
+			_Monitor_Counter_SendThreadAvr += _Monitor_SendThreadAvr[i];
+			_Monitor_Counter_AuthThreadAvr += _Monitor_AuthThreadAvr[i];
+			_Monitor_Counter_GameThreadAvr += _Monitor_GameThreadAvr[i];
 		}
 		_Monitor_Counter_RecvAvr = _Monitor_Counter_RecvAvr / 100;
 		_Monitor_Counter_SendAvr = _Monitor_Counter_SendAvr / 100;
+		_Monitor_Counter_AcceptThreadAvr = _Monitor_Counter_AcceptThreadAvr / 100;
+		_Monitor_Counter_SendThreadAvr = _Monitor_Counter_SendThreadAvr / 100;
+		_Monitor_Counter_AuthThreadAvr = _Monitor_Counter_AuthThreadAvr / 100;
+		_Monitor_Counter_GameThreadAvr = _Monitor_Counter_GameThreadAvr / 100;
 
 		_Monitor_Counter_Recv = 0;
 		_Monitor_Counter_Send = 0;
@@ -170,14 +178,14 @@ bool CGameServer::LanMonitorThread_Update()
 {	
 	while (1)
 	{
-		Sleep(1000);
+		Sleep(900);
 		PdhCollectQueryData(_CpuQuery);
 		PdhGetFormattedCounterValue(_MemoryNonpagedBytes, PDH_FMT_DOUBLE, NULL, &_CounterVal);
-		_Nonpaged_Memory = (int)_CounterVal.doubleValue;
+		_Nonpaged_Memory = (int)_CounterVal.doubleValue / (1024 * 1024);
 		PdhGetFormattedCounterValue(_MemoryAvailableMBytes, PDH_FMT_DOUBLE, NULL, &_CounterVal);
-		_Available_Memory = (int)_CounterVal.doubleValue;
+		_Available_Memory = (int)_CounterVal.doubleValue / (1024 * 1024);
 		PdhGetFormattedCounterValue(_ProcessPrivateBytes, PDH_FMT_DOUBLE, NULL, &_CounterVal);
-		_BattleServer_Memory_Commit = (int)_CounterVal.doubleValue;
+		_BattleServer_Memory_Commit = (int)_CounterVal.doubleValue / (1024 * 1024);
 		//	시스템 측정 쿼리 갱신
 
 		MakePacket(dfMONITOR_DATA_TYPE_SERVER_CPU_TOTAL);
@@ -229,7 +237,7 @@ bool CGameServer::MakePacket(BYTE DataType)
 	break;
 	case dfMONITOR_DATA_TYPE_SERVER_NETWORK_RECV:
 	{
-		_Network_Recv = _Ethernet._pdh_value_Network_RecvBytes;
+		_Network_Recv = _Ethernet._pdh_value_Network_RecvBytes / 1024;
 		CPacket *pPacket = CPacket::Alloc();
 		*pPacket << Type << DataType << _Network_Recv << _TimeStamp;
 		_pMonitor->SendPacket(pPacket);
@@ -238,7 +246,7 @@ bool CGameServer::MakePacket(BYTE DataType)
 	break;
 	case dfMONITOR_DATA_TYPE_SERVER_NETWORK_SEND:
 	{
-		_Network_Send = _Ethernet._pdh_value_Network_SendBytes;
+		_Network_Send = _Ethernet._pdh_value_Network_SendBytes / 1024;
 		CPacket *pPacket = CPacket::Alloc();
 		*pPacket << Type << DataType << _Network_Send << _TimeStamp;
 		_pMonitor->SendPacket(pPacket);

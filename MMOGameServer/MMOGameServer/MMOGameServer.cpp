@@ -48,8 +48,13 @@ CMMOServer::CMMOServer(int iMaxSession) : _iMaxSession(iMaxSession), _AccpetSock
 	_Monitor_Counter_Recv = NULL;
 	_Monitor_Counter_Send = NULL;
 	_Monitor_Counter_PacketSend = NULL;
+
 	_Monitor_Counter_RecvAvr = NULL;
 	_Monitor_Counter_SendAvr = NULL;
+	_Monitor_Counter_AcceptThreadAvr = NULL;
+	_Monitor_Counter_SendThreadAvr = NULL;
+	_Monitor_Counter_AuthThreadAvr = NULL;
+	_Monitor_Counter_GameThreadAvr = NULL;
 
 	_AccpetSocketQueue.Clear();
 }
@@ -272,6 +277,7 @@ void CMMOServer::RecvPost(int Index)
 		int LastError = WSAGetLastError();
 		if (ERROR_IO_PENDING != LastError)
 		{
+//			_pLog->Log(L"Debug", LOG_SYSTEM, L"Recv SocketError - Code %d", LastError);
 			if (true != SessionAcquireFree(Index))
 			{
 				_pLog->Log(L"Error", LOG_SYSTEM, L"Recv SocketError - Code %d", LastError);
@@ -349,6 +355,7 @@ void CMMOServer::SendPost(int Index)
 	if (SOCKET_ERROR == WSASend(pSession->_ClientInfo.Sock, Buf, BufNum, NULL, 0, &pSession->_SendOver, NULL))
 	{
 		int LastError = WSAGetLastError();
+//		_pLog->Log(L"Debug", LOG_SYSTEM, L"Send SocketError - Code %d", LastError);
 		if (ERROR_IO_PENDING != LastError)
 		{
 			SessionAcquireFree(Index);
@@ -421,15 +428,17 @@ void CMMOServer::CompleteRecv(int Index, DWORD Trans)
 
 void CMMOServer::CompleteSend(int Index, DWORD Trans)
 {
-	CPacket *pPacket;
+	CPacket *pPacket[WSABUF_MAX];
 	CNetSession *pSession = _pSessionArray[Index];
 	int Num = pSession->_iSendPacketCnt;
 
+	pSession->_CompleteSendPacket.Peek((char*)&pPacket, sizeof(CPacket*) * Num);
 	for (int i = 0; i < Num; i++)
 	{
-		pSession->_CompleteSendPacket.Dequeue((char*)&pPacket, sizeof(CPacket*));
+//		pSession->_CompleteSendPacket.Dequeue((char*)&pPacket, sizeof(CPacket*));
 //		pSession->_CompleteSendPacket.Dequeue(pPacket);
-		pPacket->Free();
+		pPacket[i]->Free();
+		pSession->_CompleteSendPacket.Dequeue(sizeof(CPacket*));
 	}
 	pSession->_iSendPacketCnt -= Num;
 	InterlockedExchange(&pSession->_SendFlag, false);
@@ -666,7 +675,7 @@ bool CMMOServer::AuthThread_update()
 	int Count;
 	while (!_bShutdown)
 	{
-		Sleep(1000);
+		Sleep(5);
 		Count = 0;
 		_Monitor_Counter_AuthUpdate++;
 

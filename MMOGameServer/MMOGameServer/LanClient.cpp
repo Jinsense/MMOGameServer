@@ -287,14 +287,17 @@ void CLanClient::CompleteRecv(DWORD dwTransfered)
 void CLanClient::CompleteSend(DWORD dwTransfered)
 {
 	CPacket * pPacket[LANCLIENT_WSABUFNUM];
-	m_Session->PacketQ.Peek((char*)&pPacket, sizeof(CPacket*) * m_Session->Send_Count);
-	for (auto i = 0; i < m_Session->Send_Count; i++)
+	int Num = m_Session->Send_Count;
+
+	m_Session->PacketQ.Peek((char*)&pPacket, sizeof(CPacket*) * Num);
+	for (auto i = 0; i < Num; i++)
 	{
 		if (pPacket == nullptr)
 			g_CrashDump->Crash();
 		pPacket[i]->Free();
 		m_Session->PacketQ.Dequeue(sizeof(CPacket*));
 	}
+	m_Session->Send_Count -= Num;
 
 	InterlockedExchange(&m_Session->SendFlag, false);
 
