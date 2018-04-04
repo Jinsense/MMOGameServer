@@ -3,13 +3,14 @@
 #include "Config.h"
 #include "GameServer.h"
 
+CConfig Config;
+
 int main()
 {
 	SYSTEM_INFO SysInfo;
 	GetSystemInfo(&SysInfo);
 	bool bFlag = true;
 	int In;
-	CConfig Config;
 	if (false == Config.Set())
 	{
 		return false;

@@ -19,6 +19,8 @@
 #define		GAME_MAX				3
 #define		RELEASE_MAX				100
 
+extern CConfig Config;
+
 class CMMOServer
 {
 public:
@@ -203,6 +205,8 @@ public:
 	long		_Monitor_Counter_SendThreadAvr;
 	long		_Monitor_Counter_AuthThreadAvr;
 	long		_Monitor_Counter_GameThreadAvr;
+	long		_Monitor_Counter_NetworkRecvAvr;
+	long		_Monitor_Counter_NetworkSendAvr;
 
 	long		_Monitor_RecvAvr[100] = { 0, };
 	long		_Monitor_SendAvr[100] = { 0, };
@@ -210,6 +214,8 @@ public:
 	long		_Monitor_SendThreadAvr[100] = { 0, };
 	long		_Monitor_AuthThreadAvr[100] = { 0, };
 	long		_Monitor_GameThreadAvr[100] = { 0, };
+	long		_Monitor_NetworkRecvBytes[100] = { 0, };
+	long		_Monitor_NetworkSendBytes[100] = { 0, };
 
 	CSystemLog	*_pLog;
 

@@ -139,11 +139,19 @@ bool CGameServer::MonitorThread_update()
 
 			wprintf(L"	CPU Total		:	%.2f%%\n", _Cpu.ProcessorTotal());
 			wprintf(L"	GameServer CPU		:	%.2f%%\n", _Cpu.ProcessTotal());
-			wprintf(L"	Ethernet Recv MBytes	:	%.2f\n", _Ethernet._pdh_value_Network_RecvBytes / (1024 * 1024));
-			wprintf(L"	Ethernet Send MBytes	:	%.2f\n", _Ethernet._pdh_value_Network_SendBytes / (1024 * 1024));
+			wprintf(L"	Ethernet Recv MBytes	:	%.2f	Avr : %.2\n", _Ethernet._pdh_value_Network_RecvBytes / (1024 * 1024));
+			wprintf(L"	Ethernet Send MBytes	:	%.2f	Avr : %.2\n", _Ethernet._pdh_value_Network_SendBytes / (1024 * 1024));
 		}
+		_Monitor_NetworkRecvBytes[Count] = _Ethernet._pdh_value_Network_RecvBytes / (1024);
+		_Monitor_NetworkSendBytes[Count] = _Ethernet._pdh_value_Network_SendBytes / (1024);
 		_Monitor_RecvAvr[Count] = _Monitor_Counter_Recv;
-		_Monitor_SendAvr[Count++] = _Monitor_Counter_Send;
+		_Monitor_SendAvr[Count] = _Monitor_Counter_Send;
+		_Monitor_AcceptThreadAvr[Count] = _Monitor_AcceptSocket;
+		_Monitor_SendThreadAvr[Count] = _Monitor_Counter_PacketSend;
+		_Monitor_AuthThreadAvr[Count] = _Monitor_Counter_AuthUpdate;
+		_Monitor_GameThreadAvr[Count++]= _Monitor_Counter_GameUpdate;
+		
+
 		if (100 == Count)
 			Count = 0;
 		for (int i = 0; i < 100; i++)
@@ -154,6 +162,8 @@ bool CGameServer::MonitorThread_update()
 			_Monitor_Counter_SendThreadAvr += _Monitor_SendThreadAvr[i];
 			_Monitor_Counter_AuthThreadAvr += _Monitor_AuthThreadAvr[i];
 			_Monitor_Counter_GameThreadAvr += _Monitor_GameThreadAvr[i];
+			_Monitor_Counter_NetworkRecvAvr += _Monitor_NetworkRecvBytes[i];
+			_Monitor_Counter_NetworkSendAvr += _Monitor_NetworkSendBytes[i];
 		}
 		_Monitor_Counter_RecvAvr = _Monitor_Counter_RecvAvr / 100;
 		_Monitor_Counter_SendAvr = _Monitor_Counter_SendAvr / 100;
@@ -161,6 +171,8 @@ bool CGameServer::MonitorThread_update()
 		_Monitor_Counter_SendThreadAvr = _Monitor_Counter_SendThreadAvr / 100;
 		_Monitor_Counter_AuthThreadAvr = _Monitor_Counter_AuthThreadAvr / 100;
 		_Monitor_Counter_GameThreadAvr = _Monitor_Counter_GameThreadAvr / 100;
+		_Monitor_Counter_NetworkRecvAvr = _Monitor_Counter_NetworkRecvAvr / 100;
+		_Monitor_Counter_NetworkSendAvr = _Monitor_Counter_NetworkSendAvr / 100;
 
 		_Monitor_Counter_Recv = 0;
 		_Monitor_Counter_Send = 0;
@@ -179,6 +191,13 @@ bool CGameServer::LanMonitorThread_Update()
 	while (1)
 	{
 		Sleep(900);
+
+//		if (false == _pMonitor->IsConnect())
+//		{
+//			_pMonitor->Connect(Config.MONITOR_BIND_IP, Config.MONITOR_BIND_PORT, true, Config.WORKER_THREAD);
+//			continue;
+//		}
+
 		PdhCollectQueryData(_CpuQuery);
 		PdhGetFormattedCounterValue(_MemoryNonpagedBytes, PDH_FMT_DOUBLE, NULL, &_CounterVal);
 		_Nonpaged_Memory = (int)_CounterVal.doubleValue / (1024 * 1024);
@@ -237,7 +256,7 @@ bool CGameServer::MakePacket(BYTE DataType)
 	break;
 	case dfMONITOR_DATA_TYPE_SERVER_NETWORK_RECV:
 	{
-		_Network_Recv = _Ethernet._pdh_value_Network_RecvBytes / 1024;
+		_Network_Recv = _Monitor_Counter_NetworkRecvAvr;
 		CPacket *pPacket = CPacket::Alloc();
 		*pPacket << Type << DataType << _Network_Recv << _TimeStamp;
 		_pMonitor->SendPacket(pPacket);
@@ -246,7 +265,7 @@ bool CGameServer::MakePacket(BYTE DataType)
 	break;
 	case dfMONITOR_DATA_TYPE_SERVER_NETWORK_SEND:
 	{
-		_Network_Send = _Ethernet._pdh_value_Network_SendBytes / 1024;
+		_Network_Send = _Monitor_Counter_NetworkSendAvr;
 		CPacket *pPacket = CPacket::Alloc();
 		*pPacket << Type << DataType << _Network_Send << _TimeStamp;
 		_pMonitor->SendPacket(pPacket);
@@ -299,7 +318,7 @@ bool CGameServer::MakePacket(BYTE DataType)
 	break;
 	case dfMONITOR_DATA_TYPE_BATTLE_AUTH_FPS:
 	{
-		_BattleServer_Auth_FPS = _Monitor_Counter_AuthUpdate;
+		_BattleServer_Auth_FPS = _Monitor_Counter_AuthThreadAvr;
 		CPacket *pPacket = CPacket::Alloc();
 		*pPacket << Type << DataType << _BattleServer_Auth_FPS << _TimeStamp;
 		_pMonitor->SendPacket(pPacket);
@@ -308,7 +327,7 @@ bool CGameServer::MakePacket(BYTE DataType)
 	break;
 	case dfMONITOR_DATA_TYPE_BATTLE_GAME_FPS:
 	{
-		_BattleServer_Game_FPS = _Monitor_Counter_GameUpdate;
+		_BattleServer_Game_FPS = _Monitor_Counter_GameThreadAvr;
 		CPacket *pPacket = CPacket::Alloc();
 		*pPacket << Type << DataType << _BattleServer_Game_FPS << _TimeStamp;
 		_pMonitor->SendPacket(pPacket);
