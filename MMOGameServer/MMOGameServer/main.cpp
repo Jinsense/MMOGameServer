@@ -18,7 +18,7 @@ int main()
 
 	CGameServer Server(Config.CLIENT_MAX);
 
-	if (false == Server._pMonitor->Connect(Config.MONITOR_BIND_IP, Config.MONITOR_BIND_PORT, true, Config.WORKER_THREAD))
+	if (false == Server._pMonitor->Connect(Config.MONITOR_BIND_IP, Config.MONITOR_BIND_PORT, true, LANCLIENT_WORKERTHREAD))
 	{
 		{
 			wprintf(L"[Main :: MonitorClient Connect] Error\n");

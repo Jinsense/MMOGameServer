@@ -171,9 +171,8 @@ bool CMMOServer::SessionAcquireLock(int Index)
 {
 	if (true == _pSessionArray[Index]->_LogOutFlag)
 		return false;
-	long IOCount = 0;
-	IOCount = InterlockedIncrement(&_pSessionArray[Index]->_IOCount);
-	if (1 == IOCount)
+
+	if (1 == InterlockedIncrement(&_pSessionArray[Index]->_IOCount))
 	{
 		SessionAcquireFree(Index);
 		return false;
@@ -183,7 +182,9 @@ bool CMMOServer::SessionAcquireLock(int Index)
 
 bool CMMOServer::SessionAcquireFree(int Index)
 {
-	if (0 == InterlockedDecrement(&_pSessionArray[Index]->_IOCount))
+	long IOCount = 0;
+	IOCount = InterlockedDecrement(&_pSessionArray[Index]->_IOCount);
+	if (0 == IOCount)
 	{
 		_pSessionArray[Index]->_LogOutFlag = true;
 		return false;
@@ -207,11 +208,14 @@ void CMMOServer::StartRecvPost(int Index)
 	DWORD NotBrokenPushSize = _pSessionArray[Index]->_RecvQ.GetNotBrokenPushSize();
 	if (0 == FreeSize && 0 == NotBrokenPushSize)
 	{
+		_pLog->Log(L"Error", LOG_SYSTEM, L"RecvPost - RecvQ Full [Index : %d]", Index);
+		
 		if (true == SessionAcquireFree(Index))
 		{
-			_pLog->Log(L"Error", LOG_SYSTEM, L"RecvPost - RecvQ Full [Index : %d]", Index);
 			shutdown(_pSessionArray[Index]->_ClientInfo.Sock, SD_BOTH);
 		}
+		else
+			return;
 	}
 
 	int NumOfBuf = (NotBrokenPushSize < FreeSize) ? 2 : 1;
@@ -254,11 +258,14 @@ void CMMOServer::RecvPost(int Index)
 	DWORD NotBrokenPushSize = pSession->_RecvQ.GetNotBrokenPushSize();
 	if (0 == FreeSize && 0 == NotBrokenPushSize)
 	{
+		_pLog->Log(L"Error", LOG_SYSTEM, L"RecvPost - RecvQ Full [Index : %d]", Index);
+
 		if (true == SessionAcquireFree(Index))
 		{
-			_pLog->Log(L"Error", LOG_SYSTEM, L"RecvPost - RecvQ Full [Index : %d]", Index);
 			shutdown(pSession->_ClientInfo.Sock, SD_BOTH);
 		}
+		else
+			return;
 	}
 
 	int NumOfBuf = (NotBrokenPushSize < FreeSize) ? 2 : 1;
@@ -277,7 +284,6 @@ void CMMOServer::RecvPost(int Index)
 		int LastError = WSAGetLastError();
 		if (ERROR_IO_PENDING != LastError)
 		{
-//			_pLog->Log(L"Debug", LOG_SYSTEM, L"Recv SocketError - Code %d", LastError);
 			if (true != SessionAcquireFree(Index))
 			{
 				_pLog->Log(L"Error", LOG_SYSTEM, L"Recv SocketError - Code %d", LastError);
@@ -346,6 +352,7 @@ void CMMOServer::SendPost(int Index)
 			Buf[j].len = pPacket->GetPacketSize();
 		}
 	}
+
 	if (false == SessionAcquireLock(Index))
 	{
 		InterlockedExchange(&pSession->_SendFlag, false);
@@ -359,7 +366,8 @@ void CMMOServer::SendPost(int Index)
 		if (ERROR_IO_PENDING != LastError)
 		{
 			SessionAcquireFree(Index);
-			_pLog->Log(L"Error", LOG_SYSTEM, L"Send SocketError - Code %d", LastError);
+			if (10054 != LastError)
+				_pLog->Log(L"Error", LOG_SYSTEM, L"Send SocketError - Code %d", LastError);
 			shutdown(pSession->_ClientInfo.Sock, SD_BOTH);
 			InterlockedExchange(&pSession->_SendFlag, false);
 			return;
@@ -466,7 +474,12 @@ void CMMOServer::ProcAuth_Accept()
 	pSession->_iSendPacketSize = NULL;
 	pSession->_LogOutFlag = false;
 	pSession->_RecvQ.Clear();
-	InterlockedIncrement(&pSession->_IOCount);
+
+	int IOCount = InterlockedIncrement(&pSession->_IOCount);
+	if (IOCount == 0)
+	{
+		_pLog->Log(L"Error", LOG_SYSTEM, L"IOCount Error - Index %d", Index);
+	}
 
 	pSession->_ClientInfo.ClientID = pInfo->ClientID;
 	strcpy_s(pSession->_ClientInfo.IP, sizeof(pSession->_ClientInfo.IP), pInfo->IP);
@@ -721,7 +734,7 @@ bool CMMOServer::GameUpdateThread_update()
 	int Count;
 	while (!_bShutdown)
 	{
-		Sleep(0);
+		Sleep(5);
 		Count = 0;
 		_Monitor_Counter_GameUpdate++;
 		ProcGame_AuthToGame();
@@ -745,7 +758,6 @@ bool CMMOServer::GameUpdateThread_update()
 					pSession->_CompleteRecvPacket.Dequeue(pPacket);
 					pSession->OnGame_Packet(pPacket);
 					pPacket->Free();
-//					SessionAcquireLock(i);
 					Count++;
 				}
 			}
@@ -799,7 +811,7 @@ bool CMMOServer::SendThread_update()
 {
 	while (!_bShutdown)
 	{
-		Sleep(0);
+		Sleep(5);
 		for (int i = 0; i < _iMaxSession; i++)
 		{
 			CNetSession *pSession = _pSessionArray[i];
@@ -807,12 +819,8 @@ bool CMMOServer::SendThread_update()
 				CNetSession::MODE_LOGOUT_IN_AUTH == pSession->_Mode || CNetSession::MODE_LOGOUT_IN_GAME == pSession->_Mode ||
 				CNetSession::MODE_WAIT_LOGOUT == pSession->_Mode)
 				continue;
-
-//			if (false == SessionAcquireLock(i))
-//				continue;
 			
 			SendPost(i);
-//			SessionAcquireFree(i);
 		}
 		_Monitor_Counter_PacketSend++;
 	}

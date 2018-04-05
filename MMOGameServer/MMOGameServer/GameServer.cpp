@@ -32,7 +32,7 @@ CGameServer::CGameServer(int iMaxSession) : CMMOServer(iMaxSession)
 	_pMonitor->Constructor(this);
 
 	PdhOpenQuery(NULL, NULL, &_CpuQuery);
-	PdhAddCounter(_CpuQuery, L"\\Memory\\Pool Nonpaged Bytes", NULL, &_MemoryAvailableMBytes);
+	PdhAddCounter(_CpuQuery, L"\\Memory\\Available MBytes", NULL, &_MemoryAvailableMBytes);
 	PdhAddCounter(_CpuQuery, L"\\Memory\\Pool Nonpaged Bytes", NULL, &_MemoryNonpagedBytes);
 	PdhAddCounter(_CpuQuery, L"\\Process(MMOGameServer)\\Private Bytes", NULL, &_ProcessPrivateBytes);
 	PdhCollectQueryData(_CpuQuery);
@@ -139,8 +139,8 @@ bool CGameServer::MonitorThread_update()
 
 			wprintf(L"	CPU Total		:	%.2f%%\n", _Cpu.ProcessorTotal());
 			wprintf(L"	GameServer CPU		:	%.2f%%\n", _Cpu.ProcessTotal());
-			wprintf(L"	Ethernet Recv MBytes	:	%.2f	Avr : %.2\n", _Ethernet._pdh_value_Network_RecvBytes / (1024 * 1024));
-			wprintf(L"	Ethernet Send MBytes	:	%.2f	Avr : %.2\n", _Ethernet._pdh_value_Network_SendBytes / (1024 * 1024));
+			wprintf(L"	Ethernet Recv KBytes	:	%.2f		Avr : %d\n", _Ethernet._pdh_value_Network_RecvBytes / (1024), _Monitor_Counter_NetworkRecvAvr);
+			wprintf(L"	Ethernet Send KBytes	:	%.2f		Avr : %d\n", _Ethernet._pdh_value_Network_SendBytes / (1024), _Monitor_Counter_NetworkSendAvr);
 		}
 		_Monitor_NetworkRecvBytes[Count] = _Ethernet._pdh_value_Network_RecvBytes / (1024);
 		_Monitor_NetworkSendBytes[Count] = _Ethernet._pdh_value_Network_SendBytes / (1024);
@@ -190,19 +190,19 @@ bool CGameServer::LanMonitorThread_Update()
 {	
 	while (1)
 	{
-		Sleep(900);
+		Sleep(1000);
 
-//		if (false == _pMonitor->IsConnect())
-//		{
-//			_pMonitor->Connect(Config.MONITOR_BIND_IP, Config.MONITOR_BIND_PORT, true, Config.WORKER_THREAD);
-//			continue;
-//		}
+		if (false == _pMonitor->IsConnect())
+		{
+			_pMonitor->Connect(Config.MONITOR_BIND_IP, Config.MONITOR_BIND_PORT, true, Config.WORKER_THREAD);
+			continue;
+		}
 
 		PdhCollectQueryData(_CpuQuery);
 		PdhGetFormattedCounterValue(_MemoryNonpagedBytes, PDH_FMT_DOUBLE, NULL, &_CounterVal);
 		_Nonpaged_Memory = (int)_CounterVal.doubleValue / (1024 * 1024);
 		PdhGetFormattedCounterValue(_MemoryAvailableMBytes, PDH_FMT_DOUBLE, NULL, &_CounterVal);
-		_Available_Memory = (int)_CounterVal.doubleValue / (1024 * 1024);
+		_Available_Memory = (int)_CounterVal.doubleValue;
 		PdhGetFormattedCounterValue(_ProcessPrivateBytes, PDH_FMT_DOUBLE, NULL, &_CounterVal);
 		_BattleServer_Memory_Commit = (int)_CounterVal.doubleValue / (1024 * 1024);
 		//	시스템 측정 쿼리 갱신

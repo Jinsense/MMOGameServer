@@ -18,7 +18,15 @@ CNetSession::CNetSession() : _RecvQ(BUF), _SendQ(BUF), _CompleteSendPacket(BUF)
 
 CNetSession::~CNetSession()
 {
-
+	while (0 != _CompleteSendPacket.GetUseSize())
+		//			while (0 != _pSessionArray[i]->_CompleteSendPacket.GetUseCount())
+	{
+		//	애초에 큐에 패킷이 남아있으면 안됨..
+		CPacket *pPacket;
+		_CompleteSendPacket.Dequeue((char*)&pPacket, sizeof(CPacket*));
+		//				_pSessionArray[i]->_CompleteSendPacket.Dequeue(pPacket);
+		pPacket->Free();
+	}
 }
 
 void CNetSession::SendPacket(CPacket *pPacket)

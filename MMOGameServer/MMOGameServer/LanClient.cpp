@@ -36,7 +36,6 @@ void CLanClient::OnEnterJoinServer()
 {
 	//	서버와의 연결 성공 후
 	CPacket *pPacket = CPacket::Alloc();
-	m_Session->bConnect = true;
 
 	WORD Type = en_PACKET_SS_MONITOR_LOGIN;
 	int ServerNo = 2;		//	배틀서버는 2
@@ -90,6 +89,7 @@ bool CLanClient::Connect(WCHAR * ServerIP, int Port, bool bNoDelay, int MaxWorke
 	m_Session->RecvQ.Clear();
 	m_Session->PacketQ.Clear();
 	m_Session->SendFlag = false;
+	m_Session->bConnect = true;
 
 	for (auto i = 0; i < MaxWorkerThread; i++)
 	{
@@ -137,7 +137,6 @@ bool CLanClient::Connect(WCHAR * ServerIP, int Port, bool bNoDelay, int MaxWorke
 
 	CreateIoCompletionPort((HANDLE)m_Session->sock, m_hIOCP, (ULONG_PTR)this, 0);
 
-	m_Session->bConnect = true;
 	OnEnterJoinServer();
 	wprintf(L"[Client :: Connect]		Complete\n");
 	RecvPost();
@@ -147,6 +146,8 @@ bool CLanClient::Connect(WCHAR * ServerIP, int Port, bool bNoDelay, int MaxWorke
 bool CLanClient::Disconnect()
 {
 	closesocket(m_Session->sock);
+
+	m_Session->sock = INVALID_SOCKET;
 
 	while (0 < m_Session->SendQ.GetUseCount())
 	{
@@ -200,7 +201,7 @@ void CLanClient::WorkerThread_Update()
 {
 	DWORD retval;
 
-	while (1)
+	while (m_Session->bConnect)
 	{
 		//	초기화 필수
 		OVERLAPPED * pOver = NULL;

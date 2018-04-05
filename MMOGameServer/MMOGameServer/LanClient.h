@@ -85,7 +85,7 @@ public:
 
 private:
 	HANDLE					m_hIOCP;
-	HANDLE					m_hWorker_Thread[10];
+	HANDLE					m_hWorker_Thread[LANCLIENT_WORKERTHREAD];
 
 	CGameServer *			_pGameServer;
 
