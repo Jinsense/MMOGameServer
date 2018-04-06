@@ -134,19 +134,18 @@ bool CLanClient::Connect(WCHAR * ServerIP, int Port, bool bNoDelay, int MaxWorke
 		}
 		break;
 	}
-
+	InterlockedIncrement(&m_Session->IO_Count);
 	CreateIoCompletionPort((HANDLE)m_Session->sock, m_hIOCP, (ULONG_PTR)this, 0);
 
 	OnEnterJoinServer();
 	wprintf(L"[Client :: Connect]		Complete\n");
-	RecvPost();
+	StartRecvPost();
 	return true;
 }
 
 bool CLanClient::Disconnect()
 {
 	closesocket(m_Session->sock);
-
 	m_Session->sock = INVALID_SOCKET;
 
 	while (0 < m_Session->SendQ.GetUseCount())
@@ -215,6 +214,11 @@ void CLanClient::WorkerThread_Update()
 		{
 			if (FALSE == retval)
 			{
+				int LastError = GetLastError();
+				if (WSA_OPERATION_ABORTED == LastError)
+				{
+
+				}
 				//	IOCP 자체 오류
 				g_CrashDump->Crash();
 			}
@@ -232,8 +236,8 @@ void CLanClient::WorkerThread_Update()
 
 		if (0 == Trans)
 		{
-			//			shutdown(sock, SD_BOTH);
-			Disconnect();
+			shutdown(m_Session->sock, SD_BOTH);
+//			Disconnect();
 		}
 		else if (pOver == &m_Session->RecvOver)
 		{
@@ -244,14 +248,14 @@ void CLanClient::WorkerThread_Update()
 			CompleteSend(Trans);
 		}
 
-		// 		if (0 >= (retval = InterlockedDecrement(&IO_Count)))
-		// 		{
-		// 			if (0 == retval)
-		// 				Disconnect();
-		// 			else if (0 > retval)
-		// 				g_CrashDump->Crash();
-		// 		}
-		//		OnWorkerThreadEnd();
+		if (0 >= (retval = InterlockedDecrement(&m_Session->IO_Count)))
+		{
+			if (0 == retval)
+				Disconnect();
+			else if (0 > retval)
+				g_CrashDump->Crash();
+		}
+//		OnWorkerThreadEnd();
 	}
 
 }
@@ -305,7 +309,7 @@ void CLanClient::CompleteSend(DWORD dwTransfered)
 	SendPost();
 }
 
-void CLanClient::RecvPost()
+void CLanClient::StartRecvPost()
 {
 	DWORD flags = 0;
 	ZeroMemory(&m_Session->RecvOver, sizeof(m_Session->RecvOver));
@@ -337,13 +341,62 @@ void CLanClient::RecvPost()
 		int lastError = WSAGetLastError();
 		if (ERROR_IO_PENDING != lastError)
 		{
-			if (WSAENOBUFS == lastError)
+			if (0 != InterlockedDecrement(&m_Session->IO_Count))
 			{
-				//	로그
-				//	메모리 한계 초과
-				g_CrashDump->Crash();
+				_pGameServer->_pLog->Log(L"Error", LOG_SYSTEM, L"Recv SocketError - Code %d", lastError);
+				shutdown(m_Session->sock, SD_BOTH);
 			}
-			Disconnect();
+			//			Disconnect();
+		}
+	}
+	return;
+}
+
+void CLanClient::RecvPost()
+{
+	int Count = InterlockedIncrement(&m_Session->IO_Count);
+	if (1 == Count)
+	{
+		InterlockedDecrement(&m_Session->IO_Count);
+		return;
+	}
+
+	DWORD flags = 0;
+	ZeroMemory(&m_Session->RecvOver, sizeof(m_Session->RecvOver));
+
+	WSABUF wsaBuf[2];
+	DWORD freeSize = m_Session->RecvQ.GetFreeSize();
+	DWORD notBrokenPushSize = m_Session->RecvQ.GetNotBrokenPushSize();
+	if (0 == freeSize && 0 == notBrokenPushSize)
+	{
+		//	로그
+		//	RecvQ가 다 차서 서버에서 연결을 끊음
+		g_CrashDump->Crash();
+		return;
+	}
+
+	int numOfBuf = (notBrokenPushSize < freeSize) ? 2 : 1;
+
+	wsaBuf[0].buf = m_Session->RecvQ.GetWriteBufferPtr();		//	Dequeue는 rear를 건드리지 않으므로 안전
+	wsaBuf[0].len = notBrokenPushSize;
+
+	if (2 == numOfBuf)
+	{
+		wsaBuf[1].buf = m_Session->RecvQ.GetBufferPtr();
+		wsaBuf[1].len = freeSize - notBrokenPushSize;
+	}
+
+	if (SOCKET_ERROR == WSARecv(m_Session->sock, wsaBuf, numOfBuf, NULL, &flags, &m_Session->RecvOver, NULL))
+	{
+		int lastError = WSAGetLastError();
+		if (ERROR_IO_PENDING != lastError)
+		{
+			if(0 != InterlockedDecrement(&m_Session->IO_Count))
+			{
+				_pGameServer->_pLog->Log(L"Error", LOG_SYSTEM, L"Recv SocketError - Code %d", lastError);
+				shutdown(m_Session->sock, SD_BOTH);
+			}
+//			Disconnect();
 		}
 	}
 	return;
@@ -394,19 +447,27 @@ void CLanClient::SendPost()
 				wsaBuf[i].len = pPacket->GetPacketSize_CustomHeader(LANCLIENT_HEADERSIZE);
 			}
 		}
+
+		if (1 == InterlockedIncrement(&m_Session->IO_Count))
+		{
+			InterlockedDecrement(&m_Session->IO_Count);
+			InterlockedExchange(&m_Session->SendFlag, false);
+			return;
+		}
+
 		ZeroMemory(&m_Session->SendOver, sizeof(m_Session->SendOver));
 		if (SOCKET_ERROR == WSASend(m_Session->sock, wsaBuf, BufNum, NULL, 0, &m_Session->SendOver, NULL))
 		{
 			int lastError = WSAGetLastError();
 			if (ERROR_IO_PENDING != lastError)
 			{
-				if (WSAENOBUFS == lastError)
+				if (0 != InterlockedDecrement(&m_Session->IO_Count))
 				{
-					//	로그
-					//	메모리 한계 초과
+					_pGameServer->_pLog->Log(L"Error", LOG_SYSTEM, L"Send SocketError - Code %d", lastError);
+					shutdown(m_Session->sock, SD_BOTH);
 				}
-				Disconnect();
-				break;
+//				Disconnect();
+				return;
 			}
 		}
 	} while (0 != m_Session->SendQ.GetUseCount());

@@ -21,7 +21,7 @@ typedef struct st_Client
 	bool		bConnect;
 	long		SendFlag;
 	long		Send_Count;
-
+	long		IO_Count;
 	OVERLAPPED				SendOver, RecvOver;
 	CRingBuffer				RecvQ, PacketQ;
 	CLockFreeQueue<CPacket*> SendQ;
@@ -30,7 +30,8 @@ typedef struct st_Client
 	st_Client() :
 		RecvQ(LANCLIENT_QUEUESIZE),
 		PacketQ(LANCLIENT_QUEUESIZE),
-		SendFlag(false) {}
+		SendFlag(false),
+		IO_Count(0){}
 }LANSESSION;
 
 class CGameServer;
@@ -73,6 +74,7 @@ private:
 		return TRUE;
 	}
 	void WorkerThread_Update();
+	void StartRecvPost();
 	void RecvPost();
 	void SendPost();
 	void CompleteRecv(DWORD dwTransfered);
