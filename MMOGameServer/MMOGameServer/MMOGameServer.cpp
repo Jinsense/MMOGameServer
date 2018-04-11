@@ -236,7 +236,7 @@ void CMMOServer::StartRecvPost(int Index)
 		{
 			if (true != SessionAcquireFree(Index))
 			{
-				_pLog->Log(L"Error", LOG_SYSTEM, L"Recv SocketError - Code %d", LastError);
+				_pLog->Log(L"shutdown", LOG_SYSTEM, L"Recv SocketError - Code %d", LastError);
 				shutdown(_pSessionArray[Index]->_ClientInfo.Sock, SD_BOTH);
 			}
 		}
@@ -286,7 +286,7 @@ void CMMOServer::RecvPost(int Index)
 		{
 			if (true != SessionAcquireFree(Index))
 			{
-				_pLog->Log(L"Error", LOG_SYSTEM, L"Recv SocketError - Code %d", LastError);
+				_pLog->Log(L"shutdown", LOG_SYSTEM, L"Recv SocketError - Code %d", LastError);
 				shutdown(pSession->_ClientInfo.Sock, SD_BOTH);
 			}
 		}
@@ -367,7 +367,7 @@ void CMMOServer::SendPost(int Index)
 		{
 			SessionAcquireFree(Index);
 			if (10054 != LastError)
-				_pLog->Log(L"Error", LOG_SYSTEM, L"Send SocketError - Code %d", LastError);
+				_pLog->Log(L"shutdown", LOG_SYSTEM, L"Send SocketError - Code %d", LastError);
 			shutdown(pSession->_ClientInfo.Sock, SD_BOTH);
 			InterlockedExchange(&pSession->_SendFlag, false);
 			return;
@@ -395,6 +395,7 @@ void CMMOServer::CompleteRecv(int Index, DWORD Trans)
 	
 		if (CNetSession::BUF < _Header.shLen)
 		{
+			_pLog->Log(L"shutdown", LOG_SYSTEM, L"CompleteRecv - Packet Header bigger than Buf Size  Index : %d", Index);
 			shutdown(pSession->_ClientInfo.Sock, SD_BOTH);
 			return;
 		}
@@ -407,6 +408,7 @@ void CMMOServer::CompleteRecv(int Index, DWORD Trans)
 
 		if (_byCode != _Header.byCode)
 		{
+			_pLog->Log(L"shutdown", LOG_SYSTEM, L"CompleteRecv - Packet Code Not Same  Index : %d", Index);
 			shutdown(pSession->_ClientInfo.Sock, SD_BOTH);
 			return;
 		}
@@ -416,6 +418,7 @@ void CMMOServer::CompleteRecv(int Index, DWORD Trans)
 		pPacket->PushData(_Header.shLen + sizeof(CPacket::st_PACKET_HEADER));
 		if (false == pPacket->DeCode(&_Header))
 		{
+			_pLog->Log(L"shutdown", LOG_SYSTEM, L"CompleteRecv - Decode Error  Index : %d", Index);
 			shutdown(pSession->_ClientInfo.Sock, SD_BOTH);
 			pPacket->Free();
 			return;
@@ -688,7 +691,7 @@ bool CMMOServer::AuthThread_update()
 	int Count;
 	while (!_bShutdown)
 	{
-		Sleep(5);
+		Sleep(1);
 		Count = 0;
 		_Monitor_Counter_AuthUpdate++;
 
@@ -734,7 +737,7 @@ bool CMMOServer::GameUpdateThread_update()
 	int Count;
 	while (!_bShutdown)
 	{
-		Sleep(5);
+		Sleep(1);
 		Count = 0;
 		_Monitor_Counter_GameUpdate++;
 		ProcGame_AuthToGame();
@@ -811,7 +814,7 @@ bool CMMOServer::SendThread_update()
 {
 	while (!_bShutdown)
 	{
-		Sleep(5);
+		Sleep(1);
 		for (int i = 0; i < _iMaxSession; i++)
 		{
 			CNetSession *pSession = _pSessionArray[i];

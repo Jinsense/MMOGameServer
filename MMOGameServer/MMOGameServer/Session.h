@@ -4,6 +4,7 @@
 #include <Windows.h>
 #include <iostream>
 
+#include "Log.h"
 #include "Packet.h"
 #include "RingBuffer.h"
 #include "LockFreeQueue.h"
@@ -88,6 +89,8 @@ public:
 
 	bool	_LogOutFlag;
 	bool	_AuthToGameFlag;
+
+	CSystemLog	*_pLog;
 
 };
 

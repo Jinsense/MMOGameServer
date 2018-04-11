@@ -35,6 +35,7 @@ void CPlayer::OnAuth_Packet(CPacket *pPacket)
 	//en_PACKET_CS_GAME_RES_LOGIN
 	if (0 == pPacket->GetDataSize())
 	{
+		_pLog->Log(L"Error", LOG_SYSTEM, L"OnAuthPacket - Packet DataSize is 0  Index : %d", this->_iArrayIndex);
 		Disconnect();
 		return;
 	}
@@ -91,6 +92,7 @@ void CPlayer::OnGame_Packet(CPacket *pPacket)
 	//en_PACKET_CS_GAME_RES_ECHO
 	if (0 == pPacket->GetDataSize())
 	{
+		_pLog->Log(L"Error", LOG_SYSTEM, L"OnGamePacket - Packet DataSize is 0  Index : %d", this->_iArrayIndex);
 		Disconnect();
 		return;
 	}

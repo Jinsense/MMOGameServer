@@ -393,7 +393,7 @@ void CLanClient::RecvPost()
 		{
 			if(0 != InterlockedDecrement(&m_Session->IO_Count))
 			{
-				_pGameServer->_pLog->Log(L"Error", LOG_SYSTEM, L"Recv SocketError - Code %d", lastError);
+				_pGameServer->_pLog->Log(L"shutdown", LOG_SYSTEM, L"LanClient Recv SocketError - Code %d", lastError);
 				shutdown(m_Session->sock, SD_BOTH);
 			}
 //			Disconnect();
@@ -463,7 +463,7 @@ void CLanClient::SendPost()
 			{
 				if (0 != InterlockedDecrement(&m_Session->IO_Count))
 				{
-					_pGameServer->_pLog->Log(L"Error", LOG_SYSTEM, L"Send SocketError - Code %d", lastError);
+					_pGameServer->_pLog->Log(L"shutdown", LOG_SYSTEM, L"LanClient Send SocketError - Code %d", lastError);
 					shutdown(m_Session->sock, SD_BOTH);
 				}
 //				Disconnect();
