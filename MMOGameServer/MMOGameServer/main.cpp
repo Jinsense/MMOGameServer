@@ -16,7 +16,7 @@ int main()
 		return false;
 	}
 
-	CGameServer Server(Config.CLIENT_MAX);
+	CGameServer Server(Config.CLIENT_MAX, Config.SEND, Config.AUTH, Config.GAME);
 
 	if (false == Server._pMonitor->Connect(Config.MONITOR_BIND_IP, Config.MONITOR_BIND_PORT, true, LANCLIENT_WORKERTHREAD))
 	{

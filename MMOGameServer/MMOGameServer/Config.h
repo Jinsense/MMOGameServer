@@ -37,6 +37,9 @@ public:
 	int PACKET_KEY1;
 	int PACKET_KEY2;
 	int LOG_LEVEL;
+	int SEND;
+	int AUTH;
+	int GAME;
 
 	//	DATABASE
 	char ACCOUNT_IP[20];

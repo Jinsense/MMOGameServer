@@ -14,7 +14,7 @@
 class CGameServer : public CMMOServer
 {
 public:
-	CGameServer(int iMaxSession);
+	CGameServer(int iMaxSession, int iSend, int iAuth, int iGame);
 	~CGameServer();
 
 	void OnConnectionRequest();

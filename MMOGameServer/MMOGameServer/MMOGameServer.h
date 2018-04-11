@@ -24,7 +24,7 @@ extern CConfig Config;
 class CMMOServer
 {
 public:
-	CMMOServer(int iMaxSession);
+	CMMOServer(int iMaxSession, int iSend, int iAuth, int iGame);
 	virtual ~CMMOServer();
 
 	bool Start(WCHAR *szListenIP, int iPort, int iWorkerThread, bool bEnableNagle, BYTE byPacketCode, BYTE byPacketKey1, BYTE byPacketKey2);
@@ -147,7 +147,10 @@ private:
 
 public:
 	const int _iMaxSession;
-
+	const int _iSendThread;
+	const int _iAuthThread;
+	const int _iGameThread;
+	
 protected:
 	bool _bShutdown;
 	bool _bShutdownListen;

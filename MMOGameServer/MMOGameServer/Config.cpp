@@ -23,6 +23,9 @@ CConfig::CConfig()
 	PACKET_KEY1 = NULL;
 	PACKET_KEY2 = NULL;
 	LOG_LEVEL = NULL;
+	SEND = NULL;
+	AUTH = NULL;
+	GAME = NULL;
 
 	ZeroMemory(&ACCOUNT_IP, sizeof(ACCOUNT_IP));
 	ACCOUNT_IP_SIZE = eNUM_BUF;
@@ -76,6 +79,10 @@ bool CConfig::Set()
 	_Parse.GetValue("PACKET_KEY1", &PACKET_KEY1);
 	_Parse.GetValue("PACKET_KEY2", &PACKET_KEY2);
 	_Parse.GetValue("LOG_LEVEL", &LOG_LEVEL);
+	_Parse.GetValue("SEND", &SEND);
+	_Parse.GetValue("AUTH", &AUTH);
+	_Parse.GetValue("GAME", &GAME);
+
 
 	_Parse.ProvideArea("DATABASE");
 	_Parse.GetValue("ACCOUNT_IP", &ACCOUNT_IP[0], &ACCOUNT_IP_SIZE);

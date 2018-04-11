@@ -12,7 +12,7 @@ using namespace std;
 
 #include "MMOGameServer.h"
 
-CMMOServer::CMMOServer(int iMaxSession) : _iMaxSession(iMaxSession), _AccpetSocketQueue(50000)
+CMMOServer::CMMOServer(int iMaxSession, int iSend, int iAuth, int iGame) : _iMaxSession(iMaxSession), _AccpetSocketQueue(50000), _iSendThread(iSend), _iAuthThread(iAuth), _iGameThread(iGame)
 {
 	timeBeginPeriod(1);
 
@@ -691,7 +691,7 @@ bool CMMOServer::AuthThread_update()
 	int Count;
 	while (!_bShutdown)
 	{
-		Sleep(1);
+		Sleep(_iAuthThread);
 		Count = 0;
 		_Monitor_Counter_AuthUpdate++;
 
@@ -737,7 +737,7 @@ bool CMMOServer::GameUpdateThread_update()
 	int Count;
 	while (!_bShutdown)
 	{
-		Sleep(1);
+		Sleep(_iGameThread);
 		Count = 0;
 		_Monitor_Counter_GameUpdate++;
 		ProcGame_AuthToGame();
@@ -814,7 +814,7 @@ bool CMMOServer::SendThread_update()
 {
 	while (!_bShutdown)
 	{
-		Sleep(1);
+		Sleep(_iSendThread);
 		for (int i = 0; i < _iMaxSession; i++)
 		{
 			CNetSession *pSession = _pSessionArray[i];

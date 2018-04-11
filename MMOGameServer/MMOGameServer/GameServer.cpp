@@ -3,7 +3,7 @@
 
 #include "GameServer.h"
 
-CGameServer::CGameServer(int iMaxSession) : CMMOServer(iMaxSession)
+CGameServer::CGameServer(int iMaxSession, int iSend, int iAuth, int iGame) : CMMOServer(iMaxSession, iSend, iAuth, iGame)
 {
 	_bMonitor = true;
 	_hMonitorThread = NULL;
