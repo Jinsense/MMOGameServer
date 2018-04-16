@@ -124,8 +124,12 @@ bool CGameServer::MonitorThread_update()
 			wprintf(L"	SessionAuth 		:	%d\n", _Monitor_SessionAuthMode);
 			wprintf(L"	SessionGame		:	%d\n\n", _Monitor_SessionGameMode);
 			
-			wprintf(L"	Recv TPS		:	%d		Recv Avr : %d\n", _Monitor_Counter_Recv, _Monitor_Counter_RecvAvr);
-			wprintf(L"	Send TPS		:	%d		Send Avr : %d\n\n", _Monitor_Counter_Send, _Monitor_Counter_SendAvr);
+			wprintf(L"	Recv TPS		:	%d\n", _Monitor_Counter_Recv);
+			wprintf(L"	Send TPS		:	%d\n\n", _Monitor_Counter_Send);
+			_Monitor_Counter_Recv = 0;
+			_Monitor_Counter_Send = 0;
+//			wprintf(L"	Recv TPS		:	%d		Recv Avr : %d\n", _Monitor_Counter_Recv, _Monitor_Counter_RecvAvr);
+//			wprintf(L"	Send TPS		:	%d		Send Avr : %d\n\n", _Monitor_Counter_Send, _Monitor_Counter_SendAvr);
 
 			wprintf(L"	AcceptTotal		:	%I64d\n\n", _Monitor_AcceptTotal);
 
@@ -144,20 +148,20 @@ bool CGameServer::MonitorThread_update()
 		}
 		_Monitor_NetworkRecvBytes[Count] = _Ethernet._pdh_value_Network_RecvBytes / (1024);
 		_Monitor_NetworkSendBytes[Count] = _Ethernet._pdh_value_Network_SendBytes / (1024);
-		_Monitor_RecvAvr[Count] = _Monitor_Counter_Recv;
-		_Monitor_SendAvr[Count] = _Monitor_Counter_Send;
+//		_Monitor_RecvAvr[Count] = _Monitor_Counter_Recv;
+//		_Monitor_SendAvr[Count] = _Monitor_Counter_Send;
 		_Monitor_AcceptThreadAvr[Count] = _Monitor_AcceptSocket;
 		_Monitor_SendThreadAvr[Count] = _Monitor_Counter_PacketSend;
 		_Monitor_AuthThreadAvr[Count] = _Monitor_Counter_AuthUpdate;
 		_Monitor_GameThreadAvr[Count++]= _Monitor_Counter_GameUpdate;
 		
 
-		if (100 == Count)
+		if (5 == Count)
 			Count = 0;
-		for (int i = 0; i < 100; i++)
+		for (int i = 0; i < 5; i++)
 		{
-			_Monitor_Counter_RecvAvr += _Monitor_RecvAvr[i];
-			_Monitor_Counter_SendAvr += _Monitor_SendAvr[i];
+//			_Monitor_Counter_RecvAvr += _Monitor_RecvAvr[i];
+//			_Monitor_Counter_SendAvr += _Monitor_SendAvr[i];
 			_Monitor_Counter_AcceptThreadAvr +=	_Monitor_AcceptThreadAvr[i];
 			_Monitor_Counter_SendThreadAvr += _Monitor_SendThreadAvr[i];
 			_Monitor_Counter_AuthThreadAvr += _Monitor_AuthThreadAvr[i];
@@ -165,17 +169,17 @@ bool CGameServer::MonitorThread_update()
 			_Monitor_Counter_NetworkRecvAvr += _Monitor_NetworkRecvBytes[i];
 			_Monitor_Counter_NetworkSendAvr += _Monitor_NetworkSendBytes[i];
 		}
-		_Monitor_Counter_RecvAvr = _Monitor_Counter_RecvAvr / 100;
-		_Monitor_Counter_SendAvr = _Monitor_Counter_SendAvr / 100;
-		_Monitor_Counter_AcceptThreadAvr = _Monitor_Counter_AcceptThreadAvr / 100;
-		_Monitor_Counter_SendThreadAvr = _Monitor_Counter_SendThreadAvr / 100;
-		_Monitor_Counter_AuthThreadAvr = _Monitor_Counter_AuthThreadAvr / 100;
-		_Monitor_Counter_GameThreadAvr = _Monitor_Counter_GameThreadAvr / 100;
-		_Monitor_Counter_NetworkRecvAvr = _Monitor_Counter_NetworkRecvAvr / 100;
-		_Monitor_Counter_NetworkSendAvr = _Monitor_Counter_NetworkSendAvr / 100;
+//		_Monitor_Counter_RecvAvr = _Monitor_Counter_RecvAvr / 5;
+//		_Monitor_Counter_SendAvr = _Monitor_Counter_SendAvr / 5;
+		_Monitor_Counter_AcceptThreadAvr = _Monitor_Counter_AcceptThreadAvr / 5;
+		_Monitor_Counter_SendThreadAvr = _Monitor_Counter_SendThreadAvr / 5;
+		_Monitor_Counter_AuthThreadAvr = _Monitor_Counter_AuthThreadAvr / 5;
+		_Monitor_Counter_GameThreadAvr = _Monitor_Counter_GameThreadAvr / 5;
+		_Monitor_Counter_NetworkRecvAvr = _Monitor_Counter_NetworkRecvAvr / 5;
+		_Monitor_Counter_NetworkSendAvr = _Monitor_Counter_NetworkSendAvr / 5;
 
-		_Monitor_Counter_Recv = 0;
-		_Monitor_Counter_Send = 0;
+//		_Monitor_Counter_Recv = 0;
+//		_Monitor_Counter_Send = 0;
 		_Monitor_AcceptSocket = 0;
 		_Monitor_Counter_PacketSend = 0;
 		_Monitor_Counter_AuthUpdate = 0;

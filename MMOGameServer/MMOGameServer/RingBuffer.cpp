@@ -7,7 +7,7 @@
 
 CRingBuffer::CRingBuffer()
 {
-//	InitializeSRWLock(&m_srw);
+	InitializeSRWLock(&m_srw);
 	m_iFront = 0;
 	m_iRear = 0;
 }
@@ -15,7 +15,7 @@ CRingBuffer::CRingBuffer()
 CRingBuffer::CRingBuffer(int iBufferSize)
 {
 	Initialize(iBufferSize);
-//	InitializeSRWLock(&m_srw);
+	InitializeSRWLock(&m_srw);
 	m_iFront = 0;
 	m_iRear = 0;
 }
@@ -91,7 +91,7 @@ int CRingBuffer::GetNotBrokenPopSize()
 
 int CRingBuffer::Enqueue(const char *pData, int iDataSize)
 {
-//	AcquireSRWLockExclusive(&m_srw);
+	AcquireSRWLockExclusive(&m_srw);
 
 	int _iDestPos = m_iRear + iDataSize;
 	int _iFront = m_iFront;
@@ -141,13 +141,13 @@ int CRingBuffer::Enqueue(const char *pData, int iDataSize)
 		m_iRear += iDataSize;
 	}
 
-//	ReleaseSRWLockExclusive(&m_srw);
+	ReleaseSRWLockExclusive(&m_srw);
 	return iDataSize;
 }
 
 int CRingBuffer::Dequeue(char *pData, int iDataSize)
 {
-//	AcquireSRWLockExclusive(&m_srw);
+	AcquireSRWLockExclusive(&m_srw);
 
 	int _iDsetPos = m_iFront + iDataSize;
 	int _iRear = m_iRear;
@@ -182,13 +182,13 @@ int CRingBuffer::Dequeue(char *pData, int iDataSize)
 		}
 	}
 
-//	ReleaseSRWLockExclusive(&m_srw);
+	ReleaseSRWLockExclusive(&m_srw);
 	return iDataSize;
 }
 
 int CRingBuffer::Enqueue(int iDataSize)
 {
-//	AcquireSRWLockExclusive(&m_srw);
+	AcquireSRWLockExclusive(&m_srw);
 
 	int _iDestPos = m_iRear + iDataSize;
 	int _iFront = m_iFront;
@@ -232,13 +232,13 @@ int CRingBuffer::Enqueue(int iDataSize)
 		m_iRear += iDataSize;
 	}
 
-//	ReleaseSRWLockExclusive(&m_srw);
+	ReleaseSRWLockExclusive(&m_srw);
 	return iDataSize;
 }
 
 int CRingBuffer::Dequeue(int iDataSize)
 {
-//	AcquireSRWLockExclusive(&m_srw);
+	AcquireSRWLockExclusive(&m_srw);
 
 	int iDestPos = m_iFront + iDataSize;
 	int _iRear = m_iRear;
@@ -268,7 +268,7 @@ int CRingBuffer::Dequeue(int iDataSize)
 		}
 	}
 
-//	ReleaseSRWLockExclusive(&m_srw);
+	ReleaseSRWLockExclusive(&m_srw);
 	return iDataSize;
 }
 
