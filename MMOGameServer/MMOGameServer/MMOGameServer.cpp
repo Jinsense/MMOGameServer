@@ -475,7 +475,11 @@ void CMMOServer::ProcAuth_Accept()
 	_Monitor_SessionAuthMode++;
 
 	int Index = NULL;
+	
+	AcquireSRWLockExclusive(&_Srwlock);
 	_BlankSessionStack.Pop(Index);
+	ReleaseSRWLockExclusive(&_Srwlock);
+
 	if (NULL == Index)
 	{
 		//	스택에서 인덱스를 제대로 못 얻었을 경우
