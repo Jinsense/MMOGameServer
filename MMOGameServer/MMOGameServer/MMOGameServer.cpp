@@ -677,8 +677,9 @@ void CMMOServer::ProcGame_Release()
 			pSession->_ClientInfo.Sock = INVALID_SOCKET;
 
 			InterlockedDecrement(&_Monitor_SessionAllMode);
-
+			AcquireSRWLockExclusive(&_Srwlock);
 			_BlankSessionStack.Push(i);
+			ReleaseSRWLockExclusive(&_Srwlock);
 		}
 	}
 	return;
