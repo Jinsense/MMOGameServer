@@ -18,13 +18,13 @@ int main()
 
 	CGameServer Server(Config.CLIENT_MAX, Config.SEND, Config.AUTH, Config.GAME);
 
-	if (false == Server._pMonitor->Connect(Config.MONITOR_BIND_IP, Config.MONITOR_BIND_PORT, true, LANCLIENT_WORKERTHREAD))
-	{
-		{
-			wprintf(L"[Main :: MonitorClient Connect] Error\n");
-			return 0;
-		}
-	}
+//	if (false == Server._pMonitor->Connect(Config.MONITOR_BIND_IP, Config.MONITOR_BIND_PORT, true, LANCLIENT_WORKERTHREAD))
+//	{
+//		{
+//			wprintf(L"[Main :: MonitorClient Connect] Error\n");
+//			return 0;
+//		}
+//	}
 
 	if (false == Server.Start(Config.BIND_IP, Config.BIND_PORT, Config.WORKER_THREAD, true, Config.PACKET_CODE, Config.PACKET_KEY1, Config.PACKET_KEY2))
 	{
